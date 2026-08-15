@@ -113,11 +113,13 @@ namespace qjspp {
         if (size < 0) {
             throw std::runtime_error("Failed to determine size of file: " + filepath.string());
         }
-
-            std::string content;
-        content.resize(static_cast<size_t>(size));
         file.seekg(0, std::ios::beg);
-        file.read(&content[0], content.size());
+
+        std::string content;
+        content.resize_and_overwrite(size, [&file](char* buf, size_t n) {
+            file.read(buf, n);
+            return file.gcount();
+        });
 
         return content;
     }
