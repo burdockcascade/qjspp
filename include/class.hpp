@@ -42,6 +42,31 @@ namespace qjspp {
         return static_cast<T*>(JS_GetOpaque(val.raw(), cid));
     }
 
+    // Dedicated ClassID and finalizer for Function Wrapper metadata objects
+    inline JSClassID g_fn_meta_class_id = 0;
+
+    template <typename Fn>
+    JSValue create_function_opaque(JSContext* ctx, Fn* fn_ptr) {
+        JSRuntime* rt = JS_GetRuntime(ctx);
+        if (g_fn_meta_class_id == 0) {
+            JS_NewClassID(rt, &g_fn_meta_class_id);
+            JSClassDef class_def{};
+            class_def.class_name = "CppFunctionMetadata";
+            class_def.finalizer = [](JSRuntime*, JSValue val) {
+                // Generic void deleter for stored std::function pointers
+                auto* ptr = JS_GetOpaque(val, g_fn_meta_class_id);
+                if (ptr) {
+                    delete static_cast<Fn*>(ptr);
+                }
+            };
+            JS_NewClass(rt, g_fn_meta_class_id, &class_def);
+        }
+
+        JSValue opaque_val = JS_NewObjectClass(ctx, g_fn_meta_class_id);
+        JS_SetOpaque(opaque_val, fn_ptr);
+        return opaque_val;
+    }
+
     // Builder class to expose C++ classes to QuickJS
     template <typename T>
     class ClassBuilder {
@@ -50,7 +75,6 @@ namespace qjspp {
         using InstanceMethodFunc = std::function<Value(T* instance, const std::vector<Value>& args)>;
         using StaticMethodFunc = std::function<Value(const std::vector<Value>& args)>;
 
-        // Signatures for property getters and setters
         using PropertyGetterFunc = std::function<Value(JSContext* ctx, T* instance)>;
         using PropertySetterFunc = std::function<void(T* instance, const Value& val)>;
 
@@ -81,10 +105,10 @@ namespace qjspp {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
             auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* fn_ptr = static_cast<InstanceMethodFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                auto* fn_ptr = static_cast<InstanceMethodFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
                 auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                if (!inst) {
-                    return JS_ThrowTypeError(ctx, "Invalid Native Object Instance");
+                if (!inst || !fn_ptr) {
+                    return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
                 }
 
                 std::vector<Value> args;
@@ -98,26 +122,25 @@ namespace qjspp {
                     return res.release();
                 } catch (const std::exception& e) {
                     return JS_ThrowTypeError(ctx, "%s", e.what());
+                } catch (...) {
+                    return JS_ThrowTypeError(ctx, "Unknown exception in native instance method");
                 }
             };
 
             auto* heap_fn = new InstanceMethodFunc(std::move(func));
-            JSValue opaque_val = JS_NewObjectClass(ctx_, ClassId<T>::id);
-            JS_SetOpaque(opaque_val, heap_fn);
+            JSValue opaque_val = create_function_opaque(ctx_, heap_fn);
 
             JSValue fn_val = JS_NewCFunctionData(ctx_, trampoline, 0, 0, 1, &opaque_val);
             JS_FreeValue(ctx_, opaque_val);
 
             JS_SetProperty(ctx_, proto_.raw(), atom, fn_val);
             JS_FreeAtom(ctx_, atom);
-
         }
 
         void static_method(std::string_view name, StaticMethodFunc func) {
             static_methods_.emplace_back(std::string(name), std::move(func));
         }
 
-        // Registers a getter (and optionally a setter) property
         void property(std::string_view name, PropertyGetterFunc getter, PropertySetterFunc setter = nullptr) {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
             JSValue getter_val = JS_UNDEFINED;
@@ -125,20 +148,21 @@ namespace qjspp {
 
             if (getter) {
                 auto getter_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<PropertyGetterFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                    auto* fn_ptr = static_cast<PropertyGetterFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
                     auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                    if (!inst) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance");
+                    if (!inst || !fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Getter");
 
                     try {
                         return (*fn_ptr)(ctx, inst).release();
                     } catch (const std::exception& e) {
                         return JS_ThrowTypeError(ctx, "%s", e.what());
+                    } catch (...) {
+                        return JS_ThrowTypeError(ctx, "Unknown exception in native getter");
                     }
                 };
 
                 auto* heap_getter = new PropertyGetterFunc(std::move(getter));
-                JSValue opaque_val = JS_NewObjectClass(ctx_, ClassId<T>::id);
-                JS_SetOpaque(opaque_val, heap_getter);
+                JSValue opaque_val = create_function_opaque(ctx_, heap_getter);
 
                 getter_val = JS_NewCFunctionData(ctx_, getter_trampoline, 0, 0, 1, &opaque_val);
                 JS_FreeValue(ctx_, opaque_val);
@@ -146,27 +170,27 @@ namespace qjspp {
 
             if (setter) {
                 auto setter_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<PropertySetterFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                    auto* fn_ptr = static_cast<PropertySetterFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
                     auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                    if (!inst) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance");
+                    if (!inst || !fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Setter");
 
                     try {
                         (*fn_ptr)(inst, Value(ctx, argv[0], true));
                         return JS_UNDEFINED;
                     } catch (const std::exception& e) {
                         return JS_ThrowTypeError(ctx, "%s", e.what());
+                    } catch (...) {
+                        return JS_ThrowTypeError(ctx, "Unknown exception in native setter");
                     }
                 };
 
                 auto* heap_setter = new PropertySetterFunc(std::move(setter));
-                JSValue opaque_val = JS_NewObjectClass(ctx_, ClassId<T>::id);
-                JS_SetOpaque(opaque_val, heap_setter);
+                JSValue opaque_val = create_function_opaque(ctx_, heap_setter);
 
                 setter_val = JS_NewCFunctionData(ctx_, setter_trampoline, 1, 0, 1, &opaque_val);
                 JS_FreeValue(ctx_, opaque_val);
             }
 
-            // Bind the getter and setter configuration natively
             JS_DefinePropertyGetSet(
                 ctx_,
                 proto_.raw(),
@@ -189,7 +213,7 @@ namespace qjspp {
             auto* heap_ctor = ctor_ ? new ConstructorFunc(std::move(ctor_)) : nullptr;
 
             auto ctor_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* ctor_ptr = static_cast<ConstructorFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                auto* ctor_ptr = static_cast<ConstructorFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
                 if (!ctor_ptr || !*ctor_ptr) {
                     return JS_ThrowTypeError(ctx, "Constructor call failed");
                 }
@@ -205,11 +229,12 @@ namespace qjspp {
                     return make_native_object(ctx, std::move(instance)).release();
                 } catch (const std::exception& e) {
                     return JS_ThrowTypeError(ctx, "%s", e.what());
+                } catch (...) {
+                    return JS_ThrowTypeError(ctx, "Unknown exception in native constructor");
                 }
             };
 
-            JSValue opaque_val = JS_NewObjectClass(ctx_, ClassId<T>::id);
-            JS_SetOpaque(opaque_val, heap_ctor);
+            JSValue opaque_val = create_function_opaque(ctx_, heap_ctor);
 
             JSValue ctor_val = JS_NewCFunctionData(ctx_, ctor_trampoline, 0, 0, 1, &opaque_val);
             JS_FreeValue(ctx_, opaque_val);
@@ -221,7 +246,7 @@ namespace qjspp {
                 JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
                 auto static_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<StaticMethodFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                    auto* fn_ptr = static_cast<StaticMethodFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
                     if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
 
                     std::vector<Value> args;
@@ -234,12 +259,13 @@ namespace qjspp {
                         return (*fn_ptr)(args).release();
                     } catch (const std::exception& e) {
                         return JS_ThrowTypeError(ctx, "%s", e.what());
+                    } catch (...) {
+                        return JS_ThrowTypeError(ctx, "Unknown exception in static method");
                     }
                 };
 
                 auto* heap_fn = new StaticMethodFunc(std::move(func));
-                JSValue static_opaque = JS_NewObjectClass(ctx_, ClassId<T>::id);
-                JS_SetOpaque(static_opaque, heap_fn);
+                JSValue static_opaque = create_function_opaque(ctx_, heap_fn);
 
                 JSValue fn_val = JS_NewCFunctionData(ctx_, static_trampoline, 0, 0, 1, &static_opaque);
                 JS_FreeValue(ctx_, static_opaque);
