@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(QJSPP_BUILD_EXAMPLES "Build qjspp examples" ${PROJECT_IS_TOP_LEVEL})
 option(QJSPP_BUILD_TESTS "Build qjspp unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(QJSPP_INCLUDE_QUICKJS "Fetch and build QuickJS dependency internally" ON)
 
@@ -73,45 +72,5 @@ if(QJSPP_BUILD_TESTS)
             qjspp
             Catch2::Catch2WithMain
     )
-
-endif()
-
-# -----------------------------------------------------------------------------
-# Targets: Examples
-# -----------------------------------------------------------------------------
-if(QJSPP_BUILD_EXAMPLES)
-
-    # Conditionally declare and optimize Raylib build configurations
-    set(BUILD_EXAMPLES OFF CACHE BOOL "Disable raylib examples" FORCE)
-
-    FetchContent_Declare(
-            raylib
-            GIT_REPOSITORY https://github.com/raysan5/raylib.git
-            GIT_TAG        6.0
-    )
-    FetchContent_MakeAvailable(raylib)
-
-    set(EXAMPLES
-            example_simple
-            example_value_basic
-            example_value_call
-            example_arrays
-            example_object
-            example_json
-            example_native_func
-    )
-
-    foreach(example ${EXAMPLES})
-        add_executable(${example} examples/${example}.cpp)
-        target_link_libraries(${example} PRIVATE qjspp)
-    endforeach()
-
-    # Special example with raylib dependency
-#     add_executable(example_raylib examples/example_raylib.cpp)
-
-#    target_link_libraries(example_raylib PRIVATE
-#            qjspp
-#            raylib
-#    )
 
 endif()
