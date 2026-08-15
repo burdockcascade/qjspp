@@ -44,6 +44,9 @@ namespace qjspp {
         [[nodiscard]] double to_double() const;
         [[nodiscard]] std::string to_string() const;
 
+        [[nodiscard]] Value call(std::initializer_list<Value> args) const;
+        [[nodiscard]] Value call_method(const Value& this_obj, std::initializer_list<Value> args = {}) const;
+
         [[nodiscard]] JSValue raw() const noexcept { return val_; }
         [[nodiscard]] JSContext* context() const noexcept { return ctx_; }
         JSValue release() noexcept;

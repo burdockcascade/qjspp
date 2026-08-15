@@ -94,6 +94,7 @@ if(QJSPP_BUILD_EXAMPLES)
     set(EXAMPLES
             example_simple
             example_value
+            example_value_call
     )
 
     foreach(example ${EXAMPLES})

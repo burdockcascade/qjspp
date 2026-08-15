@@ -1,6 +1,7 @@
 #include "value.hpp"
 #include <utility>
 #include <stdexcept>
+#include <vector>
 
 namespace qjspp {
 
@@ -75,6 +76,49 @@ namespace qjspp {
         }
         std::string result(str);
         JS_FreeCString(ctx_, str);
+        return result;
+    }
+
+    Value Value::call(std::initializer_list<Value> args) const {
+        Value undefined_this(ctx_, JS_UNDEFINED);
+        return call_method(undefined_this, args);
+    }
+
+    Value Value::call_method(const Value& this_obj, std::initializer_list<Value> args) const {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot call function: JSContext is null");
+        }
+
+        // Convert args to an array of raw JSValueConst handles
+        std::vector<JSValueConst> raw_args;
+        raw_args.reserve(args.size());
+        for (const auto& arg : args) {
+            raw_args.push_back(arg.raw());
+        }
+
+        // Invoke via QuickJS C API
+        JSValue result_raw = JS_Call(
+            ctx_,
+            val_,
+            this_obj.raw(),
+            static_cast<int>(raw_args.size()),
+            raw_args.data()
+        );
+
+        Value result(ctx_, result_raw, /*dup=*/false);
+
+        // Check for runtime exceptions during function execution
+        if (result.is_exception()) {
+            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            std::string err_msg;
+            try {
+                err_msg = exc_val.to_string();
+            } catch (...) {
+                err_msg = "Unknown error occurred during JS function execution";
+            }
+            throw std::runtime_error("JS Call Error: " + err_msg);
+        }
+
         return result;
     }
 
