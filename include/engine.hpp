@@ -6,7 +6,9 @@
 #include <stdexcept>
 #include <memory>
 #include <expected>
+
 #include "class.hpp"
+#include "module.hpp"
 #include "value.hpp"
 
 namespace std::filesystem {
@@ -83,6 +85,8 @@ namespace qjspp {
 
         template <typename T>
         ClassBuilder<T> make_class(std::string_view class_name) { return ClassBuilder<T>(context(), class_name); }
+        ModuleBuilder new_module(std::string_view module_name) { return {context(), module_name}; }
+
         [[nodiscard]] Value global() const { return {ctx_, JS_GetGlobalObject(ctx_), false}; }
 
         // --- Direct Pointer Access ---

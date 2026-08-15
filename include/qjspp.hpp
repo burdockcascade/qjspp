@@ -2,3 +2,4 @@
 #include "engine.hpp"
 #include "value.hpp"
 #include "class.hpp"
+#include "module.hpp"
