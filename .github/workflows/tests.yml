@@ -1,4 +1,7 @@
 name: C++ Unit Tests
+concurrency:
+  cancel-in-progress: true
+  group: cpp-test
 
 on:
   push:
@@ -12,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -21,10 +24,4 @@ jobs:
       - name: Build tests
         run: cmake --build build --config Release
       - name: Run unit tests
-        run: ctest --test-dir build -C Release --output-on-failure --output-junit test-results.xml
-      - name: Upload Test Report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-         name: test-report-${{ matrix.os }}
-         path: build/test-results.xml
+        run: ctest --test-dir build -C Release --output-on-failure
