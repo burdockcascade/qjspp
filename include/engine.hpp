@@ -80,6 +80,8 @@ namespace qjspp {
         [[nodiscard]] Value make_value(const double v) const { return Value::make_double(ctx_, v); }
         [[nodiscard]] Value make_value(const std::string_view v) const { return Value::make_string(ctx_, v); }
 
+        [[nodiscard]] Value global() const { return {ctx_, JS_GetGlobalObject(ctx_), false}; }
+
         // --- Direct Pointer Access ---
         [[nodiscard]] JSRuntime* runtime() const noexcept { return rt_; }
         [[nodiscard]] JSContext* context() const noexcept { return ctx_; }

@@ -24,7 +24,7 @@ public:
 
 TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.eval("globalThis").value();
+    qjspp::Value global = engine.global();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
@@ -98,7 +98,7 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
 
 TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.eval("globalThis").value();
+    qjspp::Value global = engine.global();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
@@ -156,7 +156,7 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
 
 TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.eval("globalThis").value();
+    qjspp::Value global = engine.global();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
