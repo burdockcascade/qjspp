@@ -172,8 +172,14 @@ namespace qjspp {
         JSRuntime* rt = JS_GetRuntime(ctx);
         JSClassID class_id = g_native_fn_class_id.load(std::memory_order_relaxed);
 
+        // 1. Allocate the global Class ID (if not already done)
         if (class_id == 0) {
             JS_NewClassID(rt, &class_id);
+            g_native_fn_class_id.store(class_id, std::memory_order_relaxed);
+        }
+
+        // 2. Register the class *for this specific runtime* (if not already done)
+        if (!JS_IsRegisteredClass(rt, class_id)) {
             JSClassDef class_def{};
             class_def.class_name = "CppNativeFunction";
             class_def.finalizer = [](JSRuntime*, JSValue val) {
@@ -183,7 +189,6 @@ namespace qjspp {
             };
 
             JS_NewClass(rt, class_id, &class_def);
-            g_native_fn_class_id.store(class_id, std::memory_order_relaxed);
         }
 
         auto* fn_ptr = new NativeFunction(std::move(func));

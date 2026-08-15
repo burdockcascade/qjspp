@@ -56,22 +56,31 @@ namespace qjspp {
     };
 
     // Dedicated ClassID and finalizer for Function Wrapper metadata objects
-    inline JSClassID g_fn_meta_class_id = 0;
+    inline std::atomic<JSClassID> g_fn_meta_class_id{0};
 
     template <typename Fn>
     JSValue create_function_opaque(JSContext* ctx, Fn* fn_ptr) {
         if (!fn_ptr) return JS_UNDEFINED;
 
         JSRuntime* rt = JS_GetRuntime(ctx);
-        if (g_fn_meta_class_id == 0) {
-            JS_NewClassID(rt, &g_fn_meta_class_id);
+        JSClassID class_id = g_fn_meta_class_id.load(std::memory_order_relaxed);
+
+        // 1. Allocate the global Class ID (if not already done)
+        if (class_id == 0) {
+            JS_NewClassID(rt, &class_id);
+            g_fn_meta_class_id.store(class_id, std::memory_order_relaxed);
+        }
+
+        // 2. Register the class *for this specific runtime* (if not already done)
+        if (!JS_IsRegisteredClass(rt, class_id)) {
             JSClassDef class_def{};
             class_def.class_name = "CppFunctionMetadata";
             class_def.finalizer = [](JSRuntime*, JSValue val) {
-                auto* wrapper = static_cast<TypeErasedFn*>(JS_GetOpaque(val, g_fn_meta_class_id));
+                JSClassID current_id = g_fn_meta_class_id.load(std::memory_order_relaxed);
+                auto* wrapper = static_cast<TypeErasedFn*>(JS_GetOpaque(val, current_id));
                 delete wrapper; // Invokes ~TypeErasedFn() which calls the stored type-safe deleter
             };
-            JS_NewClass(rt, g_fn_meta_class_id, &class_def);
+            JS_NewClass(rt, class_id, &class_def);
         }
 
         auto* wrapper = new TypeErasedFn{
@@ -79,7 +88,7 @@ namespace qjspp {
             .deleter = [](void* p) { delete static_cast<Fn*>(p); }
         };
 
-        JSValue opaque_val = JS_NewObjectClass(ctx, g_fn_meta_class_id);
+        JSValue opaque_val = JS_NewObjectClass(ctx, class_id);
         if (JS_IsException(opaque_val)) {
             delete wrapper;
             return JS_UNDEFINED;
@@ -106,22 +115,26 @@ namespace qjspp {
         using PropertyGetterFunc = std::function<Value(JSContext* ctx, T* instance)>;
         using PropertySetterFunc = std::function<void(T* instance, const Value& val)>;
 
-        ClassBuilder(JSContext* ctx, std::string_view class_name)
-            : ctx_(ctx), class_name_(class_name) {
+        ClassBuilder(JSContext* ctx, std::string_view class_name) : ctx_(ctx), class_name_(class_name) {
             JSRuntime* rt = JS_GetRuntime(ctx_);
 
+            // 1. Allocate the global Class ID (if not already done)
             if (ClassId<T>::id == 0) {
                 JS_NewClassID(rt, &ClassId<T>::id);
             }
 
-            JSClassDef class_def{};
-            class_def.class_name = class_name_.c_str();
-            class_def.finalizer = [](JSRuntime*, JSValue val) {
-                auto* ptr = static_cast<T*>(JS_GetOpaque(val, ClassId<T>::id));
-                delete ptr;
-            };
+            // 2. Register the class *for this specific runtime* (if not already done)
+            if (!JS_IsRegisteredClass(rt, ClassId<T>::id)) {
+                JSClassDef class_def{};
+                class_def.class_name = class_name_.c_str();
+                class_def.finalizer = [](JSRuntime*, JSValue val) {
+                    auto* ptr = static_cast<T*>(JS_GetOpaque(val, ClassId<T>::id));
+                    delete ptr;
+                };
 
-            JS_NewClass(rt, ClassId<T>::id, &class_def);
+                JS_NewClass(rt, ClassId<T>::id, &class_def);
+            }
+
             proto_ = Value::make_object(ctx_);
         }
 
