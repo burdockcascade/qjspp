@@ -1,5 +1,8 @@
-#include <catch2/catch_all.hpp>
-#include "../include/qjspp.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#include <qjspp.hpp>
 
 TEST_CASE("Engine Lifecycle and Resource Management", "[engine]") {
     SECTION("Default construction") {

@@ -1,5 +1,7 @@
-#include <catch2/catch_all.hpp>
-#include "../include/qjspp.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <qjspp.hpp>
 
 TEST_CASE("Value Primitive Factories and Conversions", "[value]") {
     auto engine = qjspp::Engine::micro();

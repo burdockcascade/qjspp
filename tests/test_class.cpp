@@ -1,7 +1,9 @@
-#include <catch2/catch_all.hpp>
 #include <memory>
 #include <cmath>
-#include "qjspp.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#include <qjspp.hpp>
 
 class TestPoint {
 public:
