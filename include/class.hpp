@@ -214,7 +214,7 @@ namespace qjspp {
             JSValue ctor_val = JS_NewCFunctionData(ctx_, ctor_trampoline, 0, 0, 1, &opaque_val);
             JS_FreeValue(ctx_, opaque_val);
 
-            JS_SetConstructorBit(ctx_, ctor_val, 1);
+            JS_SetConstructorBit(ctx_, ctor_val, true);
             JS_SetConstructor(ctx_, ctor_val, proto_.raw());
 
             for (auto& [name, func] : static_methods_) {
