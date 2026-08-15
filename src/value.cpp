@@ -36,13 +36,38 @@ namespace qjspp {
         return {ctx_, val_, true};
     }
 
-    Value Value::make_undefined(JSContext* ctx) { return {ctx, JS_UNDEFINED}; }
-    Value Value::make_null(JSContext* ctx) { return {ctx, JS_NULL}; }
-    Value Value::make_bool(JSContext* ctx, bool v) { return {ctx, JS_NewBool(ctx, v)}; }
-    Value Value::make_int32(JSContext* ctx, int32_t v) { return {ctx, JS_NewInt32(ctx, v)}; }
-    Value Value::make_double(JSContext* ctx, double v) { return {ctx, JS_NewFloat64(ctx, v)}; }
+    Value Value::make_undefined(JSContext* ctx) {
+        return {ctx, JS_UNDEFINED};
+    }
+
+    Value Value::make_null(JSContext* ctx) {
+        return {ctx, JS_NULL};
+    }
+
+    Value Value::make_bool(JSContext* ctx, bool v) {
+        return {ctx, JS_NewBool(ctx, v)};
+    }
+
+    Value Value::make_int32(JSContext* ctx, int32_t v) {
+        return {ctx, JS_NewInt32(ctx, v)};
+    }
+
+    Value Value::make_double(JSContext* ctx, double v) {
+        return {ctx, JS_NewFloat64(ctx, v)};
+    }
+
     Value Value::make_string(JSContext* ctx, std::string_view str) {
         return {ctx, JS_NewStringLen(ctx, str.data(), str.size())};
+    }
+
+    Value Value::make_object(JSContext* ctx) {
+        if (!ctx) return {};
+        return {ctx, JS_NewObject(ctx)};
+    }
+
+    Value Value::make_array(JSContext* ctx) {
+        if (!ctx) return {};
+        return {ctx, JS_NewArray(ctx)};
     }
 
     bool Value::is_array() const noexcept {
@@ -77,6 +102,85 @@ namespace qjspp {
         std::string result(str);
         JS_FreeCString(ctx_, str);
         return result;
+    }
+
+    bool Value::has(std::string_view key) const {
+        if (!ctx_ || !is_object()) return false;
+
+        JSAtom atom = JS_NewAtomLen(ctx_, key.data(), key.size());
+        int res = JS_HasProperty(ctx_, val_, atom);
+        JS_FreeAtom(ctx_, atom);
+
+        return res > 0;
+    }
+
+    Value Value::get(std::string_view key) const {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot get property: JSContext is null");
+        }
+
+        // Convert key to JSAtom to avoid allocation overhead on C-strings
+        JSAtom atom = JS_NewAtomLen(ctx_, key.data(), key.size());
+        JSValue prop_raw = JS_GetProperty(ctx_, val_, atom);
+        JS_FreeAtom(ctx_, atom);
+
+        Value prop(ctx_, prop_raw, /*dup=*/false);
+        if (prop.is_exception()) {
+            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            throw std::runtime_error("JS Get Property Error: " + exc_val.to_string());
+        }
+
+        return prop;
+    }
+
+    Value Value::get(uint32_t index) const {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot get indexed property: JSContext is null");
+        }
+
+        JSValue prop_raw = JS_GetPropertyUint32(ctx_, val_, index);
+        Value prop(ctx_, prop_raw, /*dup=*/false);
+
+        if (prop.is_exception()) {
+            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            throw std::runtime_error("JS Get Index Error: " + exc_val.to_string());
+        }
+
+        return prop;
+    }
+
+    void Value::set(std::string_view key, const Value& val) {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot set property: JSContext is null");
+        }
+
+        JSAtom atom = JS_NewAtomLen(ctx_, key.data(), key.size());
+
+        // QuickJS's JS_SetProperty consumes a reference to the assigned value.
+        // We clone `val` so our C++ `val` parameter retains its own ref-count safely.
+        Value val_copy = val.clone();
+        int res = JS_SetProperty(ctx_, val_, atom, val_copy.release());
+        JS_FreeAtom(ctx_, atom);
+
+        if (res < 0) {
+            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            throw std::runtime_error("JS Set Property Error: " + exc_val.to_string());
+        }
+    }
+
+    void Value::set(uint32_t index, const Value& val) {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot set indexed property: JSContext is null");
+        }
+
+        // JS_SetPropertyUint32 also consumes a reference
+        Value val_copy = val.clone();
+        int res = JS_SetPropertyUint32(ctx_, val_, index, val_copy.release());
+
+        if (res < 0) {
+            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            throw std::runtime_error("JS Set Index Error: " + exc_val.to_string());
+        }
     }
 
     Value Value::call(std::initializer_list<Value> args) const {

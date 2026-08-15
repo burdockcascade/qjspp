@@ -27,6 +27,8 @@ namespace qjspp {
         static Value make_int32(JSContext* ctx, int32_t v);
         static Value make_double(JSContext* ctx, double v);
         static Value make_string(JSContext* ctx, std::string_view str);
+        static Value make_object(JSContext* ctx);
+        static Value make_array(JSContext* ctx);
 
         // Keep small getters inline in the header for performance!
         [[nodiscard]] bool is_undefined() const noexcept { return JS_IsUndefined(val_); }
@@ -46,6 +48,23 @@ namespace qjspp {
 
         [[nodiscard]] Value call(std::initializer_list<Value> args) const;
         [[nodiscard]] Value call_method(const Value& this_obj, std::initializer_list<Value> args = {}) const;
+
+        // --- Object & Array Property Accessors ---
+
+        /// Checks if an object contains a property with the given name
+        [[nodiscard]] bool has(std::string_view key) const;
+
+        /// Gets a property value by key string
+        [[nodiscard]] Value get(std::string_view key) const;
+
+        /// Gets an array element or property by numeric index
+        [[nodiscard]] Value get(uint32_t index) const;
+
+        /// Sets a property value by key string
+        void set(std::string_view key, const Value& val);
+
+        /// Sets an array element or property by numeric index
+        void set(uint32_t index, const Value& val);
 
         [[nodiscard]] JSValue raw() const noexcept { return val_; }
         [[nodiscard]] JSContext* context() const noexcept { return ctx_; }

@@ -68,6 +68,8 @@ namespace qjspp {
         [[nodiscard]] Value make_int32(int32_t v) const { return Value::make_int32(ctx_, v); }
         [[nodiscard]] Value make_double(double v) const { return Value::make_double(ctx_, v); }
         [[nodiscard]] Value make_string(std::string_view str) const { return Value::make_string(ctx_, str); }
+        [[nodiscard]] Value make_object() const { return Value::make_object(ctx_); }
+        [[nodiscard]] Value make_array() const { return Value::make_array(ctx_); }
 
         // --- Direct Pointer Access ---
         [[nodiscard]] JSRuntime* runtime() const noexcept { return rt_; }
