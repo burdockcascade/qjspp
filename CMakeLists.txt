@@ -63,6 +63,7 @@ if(QJSPP_BUILD_TESTS)
     set(TEST_SOURCES
             tests/test_engine.cpp
             tests/test_value.cpp
+            tests/test_class.cpp
     )
 
     add_executable(unit-tests ${TEST_SOURCES})

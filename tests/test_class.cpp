@@ -1,0 +1,98 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#include <memory>
+#include <cmath>
+#include "qjspp.hpp"
+
+class TestPoint {
+public:
+    double x;
+    double y;
+
+    TestPoint(double x, double y) : x(x), y(y) {}
+
+    [[nodiscard]] double distance_to(const TestPoint& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    void offset(double dx, double dy) {
+        x += dx;
+        y += dy;
+    }
+};
+
+TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
+    qjspp::Engine engine = qjspp::Engine::small();
+    qjspp::Value global = engine.exec("globalThis");
+
+    qjspp::Value point_ctor = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
+        .constructor([](const std::vector<qjspp::Value>& args) {
+            double x = args.size() > 0 ? args[0].to_double() : 0.0;
+            double y = args.size() > 1 ? args[1].to_double() : 0.0;
+            return std::make_unique<TestPoint>(x, y);
+        })
+        .method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+            double dx = args.size() > 0 ? args[0].to_double() : 0.0;
+            double dy = args.size() > 1 ? args[1].to_double() : 0.0;
+            self->offset(dx, dy);
+            return qjspp::Value::make_undefined(args[0].context());
+        })
+        .method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+            if (args.empty()) {
+                throw std::runtime_error("Expected a Point argument");
+            }
+            auto* other = qjspp::get_native_opaque<TestPoint>(args[0]);
+            if (!other) {
+                throw std::runtime_error("Argument must be an instance of Point");
+            }
+            return qjspp::Value::make_double(args[0].context(), self->distance_to(*other));
+        })
+        .build();
+
+    global.set("Point", point_ctor);
+
+    SECTION("Instantiate object via JavaScript constructor") {
+        qjspp::Value result = engine.exec("const p = new Point(10, 20); p;");
+        REQUIRE(result.is_object());
+
+        auto* native_ptr = qjspp::get_native_opaque<TestPoint>(result);
+        REQUIRE(native_ptr != nullptr);
+        CHECK(native_ptr->x == 10.0);
+        CHECK(native_ptr->y == 20.0);
+    }
+
+    SECTION("Invoke native instance methods from JavaScript") {
+        std::ignore = engine.exec(R"(
+            const p = new Point(5, 5);
+            p.offset(2, 3);
+        )");
+
+        qjspp::Value p_val = engine.exec("p");
+        auto* native_ptr = qjspp::get_native_opaque<TestPoint>(p_val);
+        REQUIRE(native_ptr != nullptr);
+        CHECK(native_ptr->x == 7.0);
+        CHECK(native_ptr->y == 8.0);
+    }
+
+    SECTION("Pass native object instance as method argument") {
+        qjspp::Value dist_val = engine.exec(R"(
+            const p1 = new Point(0, 0);
+            const p2 = new Point(3, 4);
+            p1.distanceTo(p2);
+        )");
+
+        CHECK(dist_val.to_double() == 5.0);
+    }
+
+    SECTION("Throw exception when passing invalid object type") {
+        REQUIRE_THROWS_WITH(
+            engine.exec(R"(
+                const p1 = new Point(0, 0);
+                p1.distanceTo({ x: 3, y: 4 }); // Plain object, not a native Point
+            )"),
+            Catch::Matchers::ContainsSubstring("Argument must be an instance of Point")
+        );
+    }
+}

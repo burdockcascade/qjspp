@@ -4,6 +4,7 @@
 #include <quickjs.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace qjspp {
 
@@ -37,7 +38,7 @@ namespace qjspp {
         static Value make_array(JSContext* ctx);
         static Value make_function(JSContext* ctx, NativeFunction func);
 
-        // Keep small getters inline in the header for performance!
+        // Checks
         [[nodiscard]] bool is_undefined() const noexcept { return JS_IsUndefined(val_); }
         [[nodiscard]] bool is_null() const noexcept { return JS_IsNull(val_); }
         [[nodiscard]] bool is_bool() const noexcept { return JS_IsBool(val_); }
@@ -45,7 +46,7 @@ namespace qjspp {
         [[nodiscard]] bool is_string() const noexcept { return JS_IsString(val_); }
         [[nodiscard]] bool is_object() const noexcept { return JS_IsObject(val_); }
         [[nodiscard]] bool is_exception() const noexcept { return JS_IsException(val_); }
-        [[nodiscard]] bool is_array() const noexcept; // Moved to .cpp due to JSContext dependency
+        [[nodiscard]] bool is_array() const noexcept;
 
         // Conversions
         [[nodiscard]] bool to_bool() const;
@@ -57,21 +58,11 @@ namespace qjspp {
         [[nodiscard]] Value call(std::initializer_list<Value> args) const;
         [[nodiscard]] Value call_method(const Value& this_obj, std::initializer_list<Value> args = {}) const;
 
-        // --- Object & Array Property Accessors ---
-
-        /// Checks if an object contains a property with the given name
+        // Property Accessors
         [[nodiscard]] bool has(std::string_view key) const;
-
-        /// Gets a property value by key string
         [[nodiscard]] Value get(std::string_view key) const;
-
-        /// Gets an array element or property by numeric index
         [[nodiscard]] Value get(uint32_t index) const;
-
-        /// Sets a property value by key string
         void set(std::string_view key, const Value& val);
-
-        /// Sets an array element or property by numeric index
         void set(uint32_t index, const Value& val);
 
         [[nodiscard]] JSValue raw() const noexcept { return val_; }
