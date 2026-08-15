@@ -142,11 +142,11 @@ namespace qjspp {
     // === IS VALUE ===
 
     bool Value::is_array() const noexcept {
-        return ctx_ && JS_IsArray(val_) > 0;
+        return ctx_ && JS_IsArray(val_);
     }
 
     bool Value::to_bool() const {
-        return JS_ToBool(ctx_, val_) > 0;
+        return JS_ToBool(ctx_, val_);
     }
 
     int32_t Value::to_int() const {
