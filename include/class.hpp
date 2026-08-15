@@ -30,6 +30,7 @@ namespace qjspp {
         JSValue obj = JS_NewObjectClass(ctx, cid);
         if (JS_IsException(obj)) return {ctx, obj, false};
 
+        // Relinquish unique_ptr ownership only after object creation succeeds
         JS_SetOpaque(obj, ptr.release());
         return {ctx, obj, false};
     }
@@ -42,29 +43,56 @@ namespace qjspp {
         return static_cast<T*>(JS_GetOpaque(val.raw(), cid));
     }
 
+    // Type-erased container for function opaque metadata objects to guarantee correct deletion
+    struct TypeErasedFn {
+        void* ptr{nullptr};
+        void (*deleter)(void*){nullptr};
+
+        ~TypeErasedFn() {
+            if (ptr && deleter) {
+                deleter(ptr);
+            }
+        }
+    };
+
     // Dedicated ClassID and finalizer for Function Wrapper metadata objects
     inline JSClassID g_fn_meta_class_id = 0;
 
     template <typename Fn>
     JSValue create_function_opaque(JSContext* ctx, Fn* fn_ptr) {
+        if (!fn_ptr) return JS_UNDEFINED;
+
         JSRuntime* rt = JS_GetRuntime(ctx);
         if (g_fn_meta_class_id == 0) {
             JS_NewClassID(rt, &g_fn_meta_class_id);
             JSClassDef class_def{};
             class_def.class_name = "CppFunctionMetadata";
             class_def.finalizer = [](JSRuntime*, JSValue val) {
-                // Generic void deleter for stored std::function pointers
-                auto* ptr = JS_GetOpaque(val, g_fn_meta_class_id);
-                if (ptr) {
-                    delete static_cast<Fn*>(ptr);
-                }
+                auto* wrapper = static_cast<TypeErasedFn*>(JS_GetOpaque(val, g_fn_meta_class_id));
+                delete wrapper; // Invokes ~TypeErasedFn() which calls the stored type-safe deleter
             };
             JS_NewClass(rt, g_fn_meta_class_id, &class_def);
         }
 
+        auto* wrapper = new TypeErasedFn{
+            .ptr = fn_ptr,
+            .deleter = [](void* p) { delete static_cast<Fn*>(p); }
+        };
+
         JSValue opaque_val = JS_NewObjectClass(ctx, g_fn_meta_class_id);
-        JS_SetOpaque(opaque_val, fn_ptr);
+        if (JS_IsException(opaque_val)) {
+            delete wrapper;
+            return JS_UNDEFINED;
+        }
+
+        JS_SetOpaque(opaque_val, wrapper);
         return opaque_val;
+    }
+
+    template <typename Fn>
+    Fn* get_function_opaque(JSValueConst val) {
+        auto* wrapper = static_cast<TypeErasedFn*>(JS_GetOpaque(val, g_fn_meta_class_id));
+        return wrapper ? static_cast<Fn*>(wrapper->ptr) : nullptr;
     }
 
     // Builder class to expose C++ classes to QuickJS
@@ -105,19 +133,19 @@ namespace qjspp {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
             auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* fn_ptr = static_cast<InstanceMethodFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
-                auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                if (!inst || !fn_ptr) {
-                    return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
-                }
-
-                std::vector<Value> args;
-                args.reserve(argc);
-                for (int i = 0; i < argc; ++i) {
-                    args.emplace_back(ctx, argv[i], true);
-                }
-
                 try {
+                    auto* fn_ptr = get_function_opaque<InstanceMethodFunc>(data[0]);
+                    auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
+                    if (!inst || !fn_ptr || !*fn_ptr) {
+                        return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
+                    }
+
+                    std::vector<Value> args;
+                    args.reserve(argc);
+                    for (int i = 0; i < argc; ++i) {
+                        args.emplace_back(ctx, argv[i], true);
+                    }
+
                     Value res = (*fn_ptr)(inst, args);
                     return res.release();
                 } catch (const std::exception& e) {
@@ -148,11 +176,11 @@ namespace qjspp {
 
             if (getter) {
                 auto getter_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<PropertyGetterFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
-                    auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                    if (!inst || !fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Getter");
-
                     try {
+                        auto* fn_ptr = get_function_opaque<PropertyGetterFunc>(data[0]);
+                        auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
+                        if (!inst || !fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Getter");
+
                         return (*fn_ptr)(ctx, inst).release();
                     } catch (const std::exception& e) {
                         return JS_ThrowTypeError(ctx, "%s", e.what());
@@ -170,11 +198,11 @@ namespace qjspp {
 
             if (setter) {
                 auto setter_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<PropertySetterFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
-                    auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
-                    if (!inst || !fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Setter");
-
                     try {
+                        auto* fn_ptr = get_function_opaque<PropertySetterFunc>(data[0]);
+                        auto* inst = static_cast<T*>(JS_GetOpaque(this_val, ClassId<T>::id));
+                        if (!inst || !fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Setter");
+
                         (*fn_ptr)(inst, Value(ctx, argv[0], true));
                         return JS_UNDEFINED;
                     } catch (const std::exception& e) {
@@ -210,21 +238,19 @@ namespace qjspp {
                 return std::move(proto_);
             }
 
-            auto* heap_ctor = ctor_ ? new ConstructorFunc(std::move(ctor_)) : nullptr;
-
             auto ctor_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                auto* ctor_ptr = static_cast<ConstructorFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
-                if (!ctor_ptr || !*ctor_ptr) {
-                    return JS_ThrowTypeError(ctx, "Constructor call failed");
-                }
-
-                std::vector<Value> args;
-                args.reserve(argc);
-                for (int i = 0; i < argc; ++i) {
-                    args.emplace_back(ctx, argv[i], true);
-                }
-
                 try {
+                    auto* ctor_ptr = get_function_opaque<ConstructorFunc>(data[0]);
+                    if (!ctor_ptr || !*ctor_ptr) {
+                        return JS_ThrowTypeError(ctx, "Constructor call failed");
+                    }
+
+                    std::vector<Value> args;
+                    args.reserve(argc);
+                    for (int i = 0; i < argc; ++i) {
+                        args.emplace_back(ctx, argv[i], true);
+                    }
+
                     std::unique_ptr<T> instance = (*ctor_ptr)(args);
                     return make_native_object(ctx, std::move(instance)).release();
                 } catch (const std::exception& e) {
@@ -234,28 +260,34 @@ namespace qjspp {
                 }
             };
 
-            JSValue opaque_val = create_function_opaque(ctx_, heap_ctor);
+            JSValue ctor_val = JS_UNDEFINED;
+            if (ctor_) {
+                auto* heap_ctor = new ConstructorFunc(std::move(ctor_));
+                JSValue opaque_val = create_function_opaque(ctx_, heap_ctor);
 
-            JSValue ctor_val = JS_NewCFunctionData(ctx_, ctor_trampoline, 0, 0, 1, &opaque_val);
-            JS_FreeValue(ctx_, opaque_val);
+                ctor_val = JS_NewCFunctionData(ctx_, ctor_trampoline, 0, 0, 1, &opaque_val);
+                JS_FreeValue(ctx_, opaque_val);
 
-            JS_SetConstructorBit(ctx_, ctor_val, true);
-            JS_SetConstructor(ctx_, ctor_val, proto_.raw());
+                JS_SetConstructorBit(ctx_, ctor_val, true);
+                JS_SetConstructor(ctx_, ctor_val, proto_.raw());
+            } else {
+                ctor_val = JS_NewObject(ctx_);
+            }
 
             for (auto& [name, func] : static_methods_) {
                 JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
                 auto static_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-                    auto* fn_ptr = static_cast<StaticMethodFunc*>(JS_GetOpaque(data[0], g_fn_meta_class_id));
-                    if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
-
-                    std::vector<Value> args;
-                    args.reserve(argc);
-                    for (int i = 0; i < argc; ++i) {
-                        args.emplace_back(ctx, argv[i], true);
-                    }
-
                     try {
+                        auto* fn_ptr = get_function_opaque<StaticMethodFunc>(data[0]);
+                        if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
+
+                        std::vector<Value> args;
+                        args.reserve(argc);
+                        for (int i = 0; i < argc; ++i) {
+                            args.emplace_back(ctx, argv[i], true);
+                        }
+
                         return (*fn_ptr)(args).release();
                     } catch (const std::exception& e) {
                         return JS_ThrowTypeError(ctx, "%s", e.what());
