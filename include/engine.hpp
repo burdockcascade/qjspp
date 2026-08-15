@@ -58,9 +58,9 @@ namespace qjspp {
         Engine& operator=(Engine&& other) noexcept;
 
         // --- Core Execution Methods ---
-        [[nodiscard]] std::expected<Value, JsError> eval(std::string_view code, std::string_view filename = "<eval>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        [[nodiscard]] std::expected<Value, JsError> eval(std::string_view code, const char* filename = "<eval>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
         [[nodiscard]] std::expected<Value, JsError> eval_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
-        void exec(std::string_view code, std::string_view filename = "<main>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        void exec(std::string_view code, const char* filename = "<main>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
         void exec_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
 
         /// Manually triggers QuickJS Garbage Collection
@@ -114,7 +114,7 @@ namespace qjspp {
             throw std::runtime_error("Failed to determine size of file: " + filepath.string());
         }
 
-        std::string content;
+            std::string content;
         content.resize(static_cast<size_t>(size));
         file.seekg(0, std::ios::beg);
         file.read(&content[0], content.size());
@@ -234,13 +234,11 @@ namespace qjspp {
         return err;
     }
 
-    inline std::expected<Value, JsError> Engine::eval(std::string_view code, std::string_view filename, int eval_flags) const {
-        std::string code_str(code);
-        std::string filename_str(filename);
+    inline std::expected<Value, JsError> Engine::eval(std::string_view code, const char* filename, int eval_flags) const {
 
         Value result(
             ctx_,
-            JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
+            JS_Eval(ctx_, code.data(), code.size(), filename, eval_flags),
             false
         );
 
@@ -251,13 +249,11 @@ namespace qjspp {
         return result;
     }
 
-    inline void Engine::exec(std::string_view code, std::string_view filename, int eval_flags) const {
-        std::string code_str(code);
-        std::string filename_str(filename);
+    inline void Engine::exec(std::string_view code, const char* filename, int eval_flags) const {
 
         Value result(
             ctx_,
-            JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
+            JS_Eval(ctx_, code.data(), code.size(), filename, eval_flags),
             false
         );
 
@@ -267,7 +263,7 @@ namespace qjspp {
     inline std::expected<Value, JsError> Engine::eval_file(const std::filesystem::path& filepath, int eval_flags) const {
         try {
             std::string code = read_file_content(filepath);
-            return eval(code, filepath.string(), eval_flags);
+            return eval(code, filepath.string().c_str(), eval_flags);
         } catch (const std::exception& e) {
             JsError err;
             err.message = e.what();
@@ -278,7 +274,7 @@ namespace qjspp {
 
     inline void Engine::exec_file(const std::filesystem::path& filepath, int eval_flags) const {
         std::string code = read_file_content(filepath);
-        exec(code, filepath.string(), eval_flags);
+        exec(code, filepath.string().c_str(), eval_flags);
     }
 
 } // namespace qjspp
