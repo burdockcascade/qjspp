@@ -272,11 +272,11 @@ namespace qjspp {
             raw_args.data()
         );
 
-        Value result(ctx_, result_raw, /*dup=*/false);
+        Value result(ctx_, result_raw, false);
 
         // Check for runtime exceptions during function execution
         if (result.is_exception()) {
-            Value exc_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+            Value exc_val(ctx_, JS_GetException(ctx_), false);
             std::string err_msg;
             try {
                 err_msg = exc_val.to_string();
