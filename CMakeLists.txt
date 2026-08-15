@@ -21,23 +21,24 @@ if(QJSPP_INCLUDE_QUICKJS)
     FetchContent_MakeAvailable(quickjs-ng)
 endif()
 
-# Define qjspp as a header-only interface target
-add_library(qjspp INTERFACE)
+add_library(qjspp STATIC
+        src/qjspp.cpp
+)
 
-# Point INTERFACE headers to the include directory
-target_include_directories(qjspp INTERFACE
+# Point PUBLIC headers to the include directory
+target_include_directories(qjspp PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 
 # Modern target-based C++ standard enforcement
-target_compile_features(qjspp INTERFACE cxx_std_23)
+target_compile_features(qjspp PUBLIC cxx_std_23)
 
 # Only link the internal qjs target if it was fetched
 if(QJSPP_INCLUDE_QUICKJS)
-    target_link_libraries(qjspp INTERFACE qjs)
+    target_link_libraries(qjspp PUBLIC qjs)
 else()
-    target_compile_definitions(qjspp INTERFACE QJSPP_EXTERNAL_QUICKJS)
+    target_compile_definitions(qjspp PUBLIC QJSPP_EXTERNAL_QUICKJS)
 endif()
 
 # -----------------------------------------------------------------------------
