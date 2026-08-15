@@ -16,23 +16,22 @@ namespace qjspp {
             : ctx_(ctx), name_(name) {}
 
         // Add a Value export to the module
-        ModuleBuilder& export_value(std::string_view export_name, Value val) {
+        void export_value(std::string_view export_name, Value val) {
             exports_.emplace_back(std::string(export_name), std::move(val));
-            return *this;
         }
 
         // Add a function export using NativeFunction callback
-        ModuleBuilder& export_function(std::string_view export_name, NativeFunction func) {
-            return export_value(export_name, Value::make_function(ctx_, std::move(func)));
+        void export_function(std::string_view export_name, NativeFunction func) {
+            export_value(export_name, Value::make_function(ctx_, std::move(func)));
         }
 
-        ModuleBuilder& export_class(std::string_view export_name, Value val) {
-            return export_value(export_name, std::move(val));
+        void export_class(std::string_view export_name, Value val) {
+            export_value(export_name, std::move(val));
         }
 
         // Builds and registers the ES module with QuickJS
-        JSModuleDef* build() {
-            if (!ctx_) return nullptr;
+        void finalize() {
+            if (!ctx_) return;
 
             // Move instance storage to heap so it remains valid during module evaluation
             auto* self = new ModuleBuilder(std::move(*this));
@@ -68,7 +67,7 @@ namespace qjspp {
 
             if (!mod) {
                 delete self;
-                return nullptr;
+                return;
             }
 
             // 2. Safely attach the builder state pointer to import.meta as a numeric property
@@ -81,7 +80,6 @@ namespace qjspp {
                 JS_AddModuleExport(ctx_, mod, export_name.c_str());
             }
 
-            return mod;
         }
 
     private:

@@ -15,34 +15,34 @@ TEST_CASE("ModuleBuilder export functionality", "[module]") {
 
     SECTION("Export primitive values, functions, and native classes to ES Module") {
 
-        auto calc = engine.make_class<Calculator>("Calculator")
-            .constructor([](const std::vector<qjspp::Value>& args) {
-                double initial = args.empty() ? 0.0 : args[0].to_double();
-                return std::make_unique<Calculator>(initial);
-            })
-            .instance_method("add", [](Calculator* calc, const std::vector<qjspp::Value>& args) {
-                REQUIRE(!args.empty());
-                return qjspp::Value::make_double(args[0].context(), calc->add(args[0].to_double()));
-            })
-            .property("value", [](JSContext* ctx, Calculator* calc) {
-                return qjspp::Value::make_double(ctx, calc->value);
-            })
-            .build();
+        auto calc = engine.make_class<Calculator>("Calculator");
+
+        calc.constructor([](const std::vector<qjspp::Value>& args) {
+            double initial = args.empty() ? 0.0 : args[0].to_double();
+            return std::make_unique<Calculator>(initial);
+        });
+
+        calc.instance_method("add", [](Calculator* calc, const std::vector<qjspp::Value>& args) {
+            REQUIRE(!args.empty());
+            return qjspp::Value::make_double(args[0].context(), calc->add(args[0].to_double()));
+        });
+
+        calc.property("value", [](JSContext* ctx, Calculator* calc) {
+            return qjspp::Value::make_double(ctx, calc->value);
+        });
 
         // Build and register native module "math_utils"
-        auto mod = engine.new_module("math_utils")
-            .export_value("PI", engine.make_double(3.14159))
-            .export_value("version", engine.make_string("1.0.0"))
-            .export_function("add", [](const std::vector<qjspp::Value>& args) {
-                REQUIRE(args.size() >= 2);
-                double a = args[0].to_double();
-                double b = args[1].to_double();
-                return qjspp::Value::make_double(args[0].context(), a + b);
-            })
-            .export_class("Calculator", std::move(calc))
-            .build();
-
-        REQUIRE(mod != nullptr);
+        auto mod = engine.new_module("math_utils");
+        mod.export_value("PI", engine.make_double(3.14159));
+        mod.export_value("version", engine.make_string("1.0.0"));
+        mod.export_function("add", [](const std::vector<qjspp::Value>& args) {
+            REQUIRE(args.size() >= 2);
+            double a = args[0].to_double();
+            double b = args[1].to_double();
+            return qjspp::Value::make_double(args[0].context(), a + b);
+        });
+        mod.export_class("Calculator", calc.build());
+        mod.finalize();
 
         // Evaluate JavaScript module importing our native bindings including exported class
         const char* js_code = R"(
@@ -77,7 +77,7 @@ TEST_CASE("ModuleBuilder export functionality", "[module]") {
 
     SECTION("Module throws on missing export access") {
         qjspp::ModuleBuilder builder(engine.context(), "empty_mod");
-        builder.build();
+        builder.finalize();
 
         // Attempting to import an unexported identifier should fail module evaluation
         const char* js_code = R"(

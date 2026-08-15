@@ -28,31 +28,33 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
     qjspp::Value global = engine.global();
 
-    qjspp::Value point = engine.make_class<TestPoint>("Point")
-        .constructor([](const std::vector<qjspp::Value>& args) {
-            double x = args.size() > 0 ? args[0].to_double() : 0.0;
-            double y = args.size() > 1 ? args[1].to_double() : 0.0;
-            return std::make_unique<TestPoint>(x, y);
-        })
-        .instance_method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
-            double dx = args.size() > 0 ? args[0].to_double() : 0.0;
-            double dy = args.size() > 1 ? args[1].to_double() : 0.0;
-            self->offset(dx, dy);
-            return qjspp::Value::make_undefined(args[0].context());
-        })
-        .instance_method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
-            if (args.empty()) {
-                throw std::runtime_error("Expected a Point argument");
-            }
-            auto* other = qjspp::get_native_opaque<TestPoint>(args[0]);
-            if (!other) {
-                throw std::runtime_error("Argument must be an instance of Point");
-            }
-            return qjspp::Value::make_double(args[0].context(), self->distance_to(*other));
-        })
-        .build();
+    auto point = engine.make_class<TestPoint>("Point");
 
-    global.set("Point", point);
+    point.constructor([](const std::vector<qjspp::Value>& args) {
+        double x = args.size() > 0 ? args[0].to_double() : 0.0;
+        double y = args.size() > 1 ? args[1].to_double() : 0.0;
+        return std::make_unique<TestPoint>(x, y);
+    });
+
+    point.instance_method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+        double dx = args.size() > 0 ? args[0].to_double() : 0.0;
+        double dy = args.size() > 1 ? args[1].to_double() : 0.0;
+        self->offset(dx, dy);
+        return qjspp::Value::make_undefined(args[0].context());
+    });
+
+    point.instance_method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+        if (args.empty()) {
+            throw std::runtime_error("Expected a Point argument");
+        }
+        auto* other = qjspp::get_native_opaque<TestPoint>(args[0]);
+        if (!other) {
+            throw std::runtime_error("Argument must be an instance of Point");
+        }
+        return qjspp::Value::make_double(args[0].context(), self->distance_to(*other));
+    });
+
+    global.set("Point", point.build());
 
     SECTION("Instantiate object via JavaScript constructor") {
         qjspp::Value result = engine.eval("const p = new Point(10, 20); p;").value();
@@ -102,31 +104,32 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
     qjspp::Value global = engine.global();
 
-    qjspp::Value point = engine.make_class<TestPoint>("Point")
-        .constructor([](const std::vector<qjspp::Value>& args) {
-            double x = args.size() > 0 ? args[0].to_double() : 0.0;
-            double y = args.size() > 1 ? args[1].to_double() : 0.0;
-            return std::make_unique<TestPoint>(x, y);
-        })
-        // Readable & Writable property for 'x'
-        .property("x",
-            [](JSContext* ctx, TestPoint* self) {
-                return qjspp::Value::make_double(ctx, self->x);
-            },
-            [](TestPoint* self, const qjspp::Value& val) {
-                self->x = val.to_double();
-            }
-        )
-        // Read-only computed property
-        .property("magnitude",
-            [](JSContext* ctx, TestPoint* self) {
-                double mag = std::sqrt(self->x * self->x + self->y * self->y);
-                return qjspp::Value::make_double(ctx, mag);
-            } // No setter provided
-        )
-        .build();
+    auto point = engine.make_class<TestPoint>("Point");
+    point.constructor([](const std::vector<qjspp::Value>& args) {
+        double x = args.size() > 0 ? args[0].to_double() : 0.0;
+        double y = args.size() > 1 ? args[1].to_double() : 0.0;
+        return std::make_unique<TestPoint>(x, y);
+    });
 
-    global.set("Point", point);
+    // Readable & Writable property for 'x'
+    point.property("x",
+        [](JSContext* ctx, TestPoint* self) {
+            return qjspp::Value::make_double(ctx, self->x);
+        },
+        [](TestPoint* self, const qjspp::Value& val) {
+            self->x = val.to_double();
+        }
+    );
+
+    // Read-only computed property
+    point.property("magnitude",
+        [](JSContext* ctx, TestPoint* self) {
+            double mag = std::sqrt(self->x * self->x + self->y * self->y);
+            return qjspp::Value::make_double(ctx, mag);
+        } // No setter provided
+    );
+
+    global.set("Point", point.build());
 
     SECTION("Read and write via property accessors") {
         std::ignore = engine.eval(R"(
@@ -160,21 +163,22 @@ TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
     qjspp::Value global = engine.global();
 
-    qjspp::Value point = engine.make_class<TestPoint>("Point")
-        .constructor([](const std::vector<qjspp::Value>& args) {
-            double x = args.size() > 0 ? args[0].to_double() : 0.0;
-            double y = args.size() > 1 ? args[1].to_double() : 0.0;
-            return std::make_unique<TestPoint>(x, y);
-        })
-        .static_method("fromPolar", [](const std::vector<qjspp::Value>& args) {
-            double r = args.size() > 0 ? args[0].to_double() : 0.0;
-            double theta = args.size() > 1 ? args[1].to_double() : 0.0;
-            auto pt = std::make_unique<TestPoint>(r * std::cos(theta), r * std::sin(theta));
-            return qjspp::make_native_object(args[0].context(), std::move(pt));
-        })
-        .build();
+    auto point = engine.make_class<TestPoint>("Point");
 
-    global.set("Point", point);
+    point.constructor([](const std::vector<qjspp::Value>& args) {
+        double x = args.size() > 0 ? args[0].to_double() : 0.0;
+        double y = args.size() > 1 ? args[1].to_double() : 0.0;
+        return std::make_unique<TestPoint>(x, y);
+    });
+
+    point.static_method("fromPolar", [](const std::vector<qjspp::Value>& args) {
+        double r = args.size() > 0 ? args[0].to_double() : 0.0;
+        double theta = args.size() > 1 ? args[1].to_double() : 0.0;
+        auto pt = std::make_unique<TestPoint>(r * std::cos(theta), r * std::sin(theta));
+        return qjspp::make_native_object(args[0].context(), std::move(pt));
+    });
+
+    global.set("Point", point.build());
 
     SECTION("Call static factory method from JS") {
         qjspp::Value result = engine.eval("Point.fromPolar(10, 0);").value();

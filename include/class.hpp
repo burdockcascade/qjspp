@@ -73,12 +73,11 @@ namespace qjspp {
             proto_ = Value::make_object(ctx_);
         }
 
-        ClassBuilder& constructor(ConstructorFunc ctor) {
+        void constructor(ConstructorFunc ctor) {
             ctor_ = std::move(ctor);
-            return *this;
         }
 
-        ClassBuilder& instance_method(std::string_view name, InstanceMethodFunc func) {
+        void instance_method(std::string_view name, InstanceMethodFunc func) {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
             auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
@@ -112,16 +111,14 @@ namespace qjspp {
             JS_SetProperty(ctx_, proto_.raw(), atom, fn_val);
             JS_FreeAtom(ctx_, atom);
 
-            return *this;
         }
 
-        ClassBuilder& static_method(std::string_view name, StaticMethodFunc func) {
+        void static_method(std::string_view name, StaticMethodFunc func) {
             static_methods_.emplace_back(std::string(name), std::move(func));
-            return *this;
         }
 
         // Registers a getter (and optionally a setter) property
-        ClassBuilder& property(std::string_view name, PropertyGetterFunc getter, PropertySetterFunc setter = nullptr) {
+        void property(std::string_view name, PropertyGetterFunc getter, PropertySetterFunc setter = nullptr) {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
             JSValue getter_val = JS_UNDEFINED;
             JSValue setter_val = JS_UNDEFINED;
@@ -180,7 +177,6 @@ namespace qjspp {
             );
 
             JS_FreeAtom(ctx_, atom);
-            return *this;
         }
 
         Value build() {
