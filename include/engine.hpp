@@ -36,11 +36,10 @@ namespace qjspp {
     class Engine {
     public:
         // Preset configurations
-        [[nodiscard]] static Engine micro()   { return Engine(1 * 1024 * 1024,  256 * 1024); }
-        [[nodiscard]] static Engine small()  { return Engine(8 * 1024 * 1024,  512 * 1024); }
-        [[nodiscard]] static Engine medium() { return Engine(32 * 1024 * 1024, 1024 * 1024); }
-        [[nodiscard]] static Engine large()  { return Engine(128 * 1024 * 1024, 2048 * 1024); }
-        [[nodiscard]] static Engine unlimited()   { return {}; }
+        [[nodiscard]] static Engine micro()   { return Engine(1 * 1024 * 1024,   256 * 1024); }  //  1 MB heap,  256 KB buffer
+        [[nodiscard]] static Engine small()  { return Engine(8 * 1024 * 1024,   512 * 1024); }  //  8 MB heap,  512 KB buffer
+        [[nodiscard]] static Engine medium() { return Engine(32 * 1024 * 1024,  1024 * 1024); } // 32 MB heap, 1024 KB buffer
+        [[nodiscard]] static Engine large()  { return Engine(128 * 1024 * 1024, 2048 * 1024); } // 128 MB heap, 2048 KB buffer
 
         // --- Lifecycle Management ---
         Engine();
