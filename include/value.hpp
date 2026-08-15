@@ -1,10 +1,15 @@
 #pragma once
 
+#include <functional>
 #include <quickjs.h>
 #include <string>
 #include <string_view>
 
 namespace qjspp {
+
+    class Value;
+
+    using NativeFunction = std::function<Value(const std::vector<Value>& args)>;
 
     class Value {
     public:
@@ -29,6 +34,7 @@ namespace qjspp {
         static Value make_string(JSContext* ctx, std::string_view str);
         static Value make_object(JSContext* ctx);
         static Value make_array(JSContext* ctx);
+        static Value make_function(JSContext* ctx, NativeFunction func);
 
         // Keep small getters inline in the header for performance!
         [[nodiscard]] bool is_undefined() const noexcept { return JS_IsUndefined(val_); }

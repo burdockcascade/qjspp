@@ -70,6 +70,69 @@ namespace qjspp {
         return {ctx, JS_NewArray(ctx)};
     }
 
+    static JSClassID g_native_fn_class_id = 0;
+
+    Value Value::make_function(JSContext* ctx, NativeFunction func) {
+        if (!ctx) return Value();
+
+        JSRuntime* rt = JS_GetRuntime(ctx);
+
+        // 1. Ensure a valid JSClassID with a destructor/finalizer is registered ONCE
+        if (g_native_fn_class_id == 0) {
+            JS_NewClassID(rt, &g_native_fn_class_id);
+
+            JSClassDef class_def{};
+            class_def.class_name = "CppNativeFunction";
+            class_def.finalizer = [](JSRuntime* rt, JSValue val) {
+                // Free the heap-allocated std::function when QuickJS GCs this object
+                auto* fn = static_cast<NativeFunction*>(JS_GetOpaque(val, g_native_fn_class_id));
+                delete fn;
+            };
+
+            JS_NewClass(rt, g_native_fn_class_id, &class_def);
+        }
+
+        // 2. Heap-allocate the std::function payload
+        auto* fn_ptr = new NativeFunction(std::move(func));
+
+        // 3. Define the C-style trampoline matching JSCFunctionData signature
+        auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+            // Retrieve the captured C++ std::function safely using our ClassID
+            auto* fn = static_cast<NativeFunction*>(JS_GetOpaque(data[0], g_native_fn_class_id));
+            if (!fn || !*fn) {
+                return JS_ThrowTypeError(ctx, "Native function pointer is null or invalid");
+            }
+
+            // Convert raw JSValueConst array to C++ Value array
+            std::vector<Value> args;
+            args.reserve(argc);
+            for (int i = 0; i < argc; ++i) {
+                args.emplace_back(ctx, argv[i], /*dup=*/true);
+            }
+
+            try {
+                Value result = (*fn)(args);
+                return result.release(); // Hand over reference ownership to JS
+            } catch (const std::exception& e) {
+                return JS_ThrowTypeError(ctx, "%s", e.what());
+            } catch (...) {
+                return JS_ThrowTypeError(ctx, "Unknown exception in native callback");
+            }
+        };
+
+        // 4. Create an opaque payload object with our registered class
+        JSValue opaque_val = JS_NewObjectClass(ctx, g_native_fn_class_id);
+        JS_SetOpaque(opaque_val, fn_ptr);
+
+        // 5. Wrap the trampoline and the opaque payload object into a JS Function
+        JSValue func_val = JS_NewCFunctionData(ctx, trampoline, 0, 0, 1, &opaque_val);
+
+        // Free our local reference to opaque_val (func_val holds a ref now)
+        JS_FreeValue(ctx, opaque_val);
+
+        return Value(ctx, func_val, /*dup=*/false);
+    }
+
     bool Value::is_array() const noexcept {
         return ctx_ && JS_IsArray(val_) > 0;
     }
