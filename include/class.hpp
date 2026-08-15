@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <quickjs.h>
 #include "value.hpp"
@@ -47,6 +48,7 @@ namespace qjspp {
     public:
         using ConstructorFunc = std::function<std::unique_ptr<T>(const std::vector<Value>& args)>;
         using MethodFunc = std::function<Value(T* instance, const std::vector<Value>& args)>;
+        using StaticMethodFunc = std::function<Value(const std::vector<Value>& args)>;
 
         ClassBuilder(JSContext* ctx, std::string_view class_name)
             : ctx_(ctx), class_name_(class_name) {
@@ -72,7 +74,7 @@ namespace qjspp {
             return *this;
         }
 
-        ClassBuilder& method(std::string_view name, MethodFunc func) {
+        ClassBuilder& instance_method(std::string_view name, MethodFunc func) {
             JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
 
             auto trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
@@ -109,15 +111,20 @@ namespace qjspp {
             return *this;
         }
 
+        ClassBuilder& static_method(std::string_view name, StaticMethodFunc func) {
+            static_methods_.emplace_back(std::string(name), std::move(func));
+            return *this;
+        }
+
         Value build() {
             JS_SetClassProto(ctx_, ClassId<T>::id, proto_.clone().release());
 
-            if (!ctor_) {
+            if (!ctor_ && static_methods_.empty()) {
                 return std::move(proto_);
             }
 
             // Allocate heap constructor callback
-            auto* heap_ctor = new ConstructorFunc(std::move(ctor_));
+            auto* heap_ctor = ctor_ ? new ConstructorFunc(std::move(ctor_)) : nullptr;
 
             // Define trampoline receiving constructor pointer via JS_GetOpaque
             auto ctor_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
@@ -153,6 +160,41 @@ namespace qjspp {
             // Set standard JavaScript constructor and prototype relationship
             JS_SetConstructor(ctx_, ctor_val, proto_.raw());
 
+            // Bind static methods directly onto the constructor object
+            for (auto& [name, func] : static_methods_) {
+                JSAtom atom = JS_NewAtomLen(ctx_, name.data(), name.size());
+
+                auto static_trampoline = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
+                    auto* fn_ptr = static_cast<StaticMethodFunc*>(JS_GetOpaque(data[0], ClassId<T>::id));
+                    if (!fn_ptr || !*fn_ptr) {
+                        return JS_ThrowTypeError(ctx, "Invalid static method call");
+                    }
+
+                    std::vector<Value> args;
+                    args.reserve(argc);
+                    for (int i = 0; i < argc; ++i) {
+                        args.emplace_back(ctx, argv[i], true);
+                    }
+
+                    try {
+                        Value res = (*fn_ptr)(args);
+                        return res.release();
+                    } catch (const std::exception& e) {
+                        return JS_ThrowTypeError(ctx, "%s", e.what());
+                    }
+                };
+
+                auto* heap_fn = new StaticMethodFunc(std::move(func));
+                JSValue static_opaque = JS_NewObjectClass(ctx_, ClassId<T>::id);
+                JS_SetOpaque(static_opaque, heap_fn);
+
+                JSValue fn_val = JS_NewCFunctionData(ctx_, static_trampoline, 0, 0, 1, &static_opaque);
+                JS_FreeValue(ctx_, static_opaque);
+
+                JS_SetProperty(ctx_, ctor_val, atom, fn_val);
+                JS_FreeAtom(ctx_, atom);
+            }
+
             return {ctx_, ctor_val, false};
         }
 
@@ -161,6 +203,7 @@ namespace qjspp {
         std::string class_name_;
         Value proto_;
         ConstructorFunc ctor_;
+        std::vector<std::pair<std::string, StaticMethodFunc>> static_methods_;
     };
 
 } // namespace qjspp

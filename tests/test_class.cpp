@@ -33,13 +33,13 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
             double y = args.size() > 1 ? args[1].to_double() : 0.0;
             return std::make_unique<TestPoint>(x, y);
         })
-        .method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+        .instance_method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
             double dx = args.size() > 0 ? args[0].to_double() : 0.0;
             double dy = args.size() > 1 ? args[1].to_double() : 0.0;
             self->offset(dx, dy);
             return qjspp::Value::make_undefined(args[0].context());
         })
-        .method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+        .instance_method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
             if (args.empty()) {
                 throw std::runtime_error("Expected a Point argument");
             }
@@ -94,5 +94,36 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
             )"),
             Catch::Matchers::ContainsSubstring("Argument must be an instance of Point")
         );
+    }
+}
+
+TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
+    qjspp::Engine engine = qjspp::Engine::small();
+    qjspp::Value global = engine.exec("globalThis");
+
+    qjspp::Value point_ctor = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
+        .constructor([](const std::vector<qjspp::Value>& args) {
+            double x = args.size() > 0 ? args[0].to_double() : 0.0;
+            double y = args.size() > 1 ? args[1].to_double() : 0.0;
+            return std::make_unique<TestPoint>(x, y);
+        })
+        .static_method("fromPolar", [](const std::vector<qjspp::Value>& args) {
+            double r = args.size() > 0 ? args[0].to_double() : 0.0;
+            double theta = args.size() > 1 ? args[1].to_double() : 0.0;
+            auto pt = std::make_unique<TestPoint>(r * std::cos(theta), r * std::sin(theta));
+            return qjspp::make_native_object(args[0].context(), std::move(pt));
+        })
+        .build();
+
+    global.set("Point", point_ctor);
+
+    SECTION("Call static factory method from JS") {
+        qjspp::Value result = engine.exec("Point.fromPolar(10, 0);");
+        REQUIRE(result.is_object());
+
+        auto* native_ptr = qjspp::get_native_opaque<TestPoint>(result);
+        REQUIRE(native_ptr != nullptr);
+        CHECK(native_ptr->x == 10.0);
+        CHECK(native_ptr->y == 0.0);
     }
 }
