@@ -24,6 +24,7 @@ endif()
 
 add_library(qjspp STATIC
         src/engine.cpp
+        src/value.cpp
 )
 
 # Point PUBLIC headers to the include directory
@@ -92,6 +93,7 @@ if(QJSPP_BUILD_EXAMPLES)
 
     set(EXAMPLES
             example_simple
+            example_value
     )
 
     foreach(example ${EXAMPLES})

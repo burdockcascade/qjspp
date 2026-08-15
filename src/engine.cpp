@@ -58,99 +58,88 @@ namespace qjspp {
     }
 
     std::string Engine::format_exception() const {
-        JSValue exception_val = JS_GetException(ctx_);
+        Value exception_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
 
-        const char* str = JS_ToCString(ctx_, exception_val);
-        std::string err_msg = str ? str : "Unknown JavaScript Error";
-        if (str) {
-            JS_FreeCString(ctx_, str);
+        std::string err_msg;
+        try {
+            err_msg = exception_val.to_string();
+        } catch (...) {
+            err_msg = "Unknown JavaScript Error";
         }
 
         // Directly query "stack" if it's an object
-        if (JS_IsObject(exception_val)) {
-            JSValue stack_val = JS_GetPropertyStr(ctx_, exception_val, "stack");
-            if (!JS_IsUndefined(stack_val)) {
-                const char* stack_str = JS_ToCString(ctx_, stack_val);
-                if (stack_str && stack_str[0] != '\0') {
-                    err_msg += "\nStack Trace:\n";
-                    err_msg += stack_str;
-                }
-                if (stack_str) {
-                    JS_FreeCString(ctx_, stack_str);
-                }
+        if (exception_val.is_object()) {
+            Value stack_val(ctx_, JS_GetPropertyStr(ctx_, exception_val.raw(), "stack"), /*dup=*/false);
+            if (!stack_val.is_undefined()) {
+                try {
+                    std::string stack_str = stack_val.to_string();
+                    if (!stack_str.empty()) {
+                        err_msg += "\nStack Trace:\n" + stack_str;
+                    }
+                } catch (...) {}
             }
-            JS_FreeValue(ctx_, stack_val);
         }
 
-        JS_FreeValue(ctx_, exception_val);
         return err_msg;
     }
 
-    void Engine::check_exception(JSValueConst val) const {
-        if (JS_IsException(val)) {
+    void Engine::check_exception(const Value& val) const {
+        if (val.is_exception()) {
             throw std::runtime_error(format_exception());
         }
     }
 
     JsError Engine::get_and_clear_exception() const {
-        JSValue exception_val = JS_GetException(ctx_);
+        Value exception_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
 
         JsError err;
-        const char* str = JS_ToCString(ctx_, exception_val);
-        err.message = str ? str : "Unknown JavaScript Error";
-        if (str) JS_FreeCString(ctx_, str);
-
-        if (JS_IsObject(exception_val)) {
-            JSValue stack_val = JS_GetPropertyStr(ctx_, exception_val, "stack");
-            if (!JS_IsUndefined(stack_val) && !JS_IsNull(stack_val)) {
-                const char* stack_str = JS_ToCString(ctx_, stack_val);
-                if (stack_str) {
-                    err.stack = stack_str;
-                    JS_FreeCString(ctx_, stack_str);
-                }
-            }
-            JS_FreeValue(ctx_, stack_val);
+        try {
+            err.message = exception_val.to_string();
+        } catch (...) {
+            err.message = "Unknown JavaScript Error";
         }
 
-        JS_FreeValue(ctx_, exception_val);
+        if (exception_val.is_object()) {
+            Value stack_val(ctx_, JS_GetPropertyStr(ctx_, exception_val.raw(), "stack"), /*dup=*/false);
+            if (!stack_val.is_undefined() && !stack_val.is_null()) {
+                try {
+                    err.stack = stack_val.to_string();
+                } catch (...) {}
+            }
+        }
+
         return err;
     }
 
-    std::expected<std::string, JsError> Engine::eval(std::string_view code, std::string_view filename, int eval_flags) const {
+    std::expected<Value, JsError> Engine::eval(std::string_view code, std::string_view filename, int eval_flags) const {
         std::string code_str(code);
         std::string filename_str(filename);
 
-        const JSValue result = JS_Eval(
+        Value result(
             ctx_,
-            code_str.c_str(),
-            code_str.size(),
-            filename_str.c_str(),
-            eval_flags
+            JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
+            /*dup=*/false
         );
 
-        if (JS_IsException(result)) {
+        if (result.is_exception()) {
             return std::unexpected(get_and_clear_exception());
         }
 
-        const char* str = JS_ToCString(ctx_, result);
-        std::string return_value = str ? str : "";
-        if (str) JS_FreeCString(ctx_, str);
-        JS_FreeValue(ctx_, result);
-
-        return return_value;
+        return result;
     }
 
-    void Engine::exec(std::string_view code, std::string_view filename, int eval_flags) const {
-        const JSValue result = JS_Eval(
+    Value Engine::exec(std::string_view code, std::string_view filename, int eval_flags) const {
+        std::string code_str(code);
+        std::string filename_str(filename);
+
+        Value result(
             ctx_,
-            code.data(),
-            code.size(),
-            filename.data(),
-            eval_flags
+            JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
+            /*dup=*/false
         );
 
         check_exception(result);
-        JS_FreeValue(ctx_, result);
+        return result;
     }
 
 }

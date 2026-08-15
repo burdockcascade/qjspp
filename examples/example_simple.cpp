@@ -1,29 +1,29 @@
 #include <print>
-#include "../include/engine.hpp"
+#include "engine.hpp"
 
 int main() {
     qjspp::Engine engine;
 
-    // 1. Evaluate simple math
-    auto res1 = engine.eval("const a = 10; let b = 20; b = 30; a + b;");
+    // 1. Evaluate math and read a double
+    auto res1 = engine.eval("const a = 10; const b = 32.5; a + b;");
     if (res1) {
-        std::println("Result: {}", res1.value());
-    } else {
-        std::println("JS Error: {}", res1.error().message);
-        if (!res1.error().stack.empty()) {
-            std::println("Stack:\n {}", res1.error().stack);
+        if (res1->is_number()) {
+            std::println("Result as double: {}", res1->to_double());
         }
+    } else {
+        std::println("JS Error: {}", res1.error().to_string());
     }
 
-    // 2. Catch syntax errors gracefully
-    auto res2 = engine.eval("const broken = {");
+    // 2. Evaluate string
+    auto res2 = engine.eval("'Hello ' + 'from C++!'");
     if (res2) {
-        std::println("Result: {}", res2.value());
-    } else {
-        std::println("JS Error: {}", res2.error().message);
-        if (!res2.error().stack.empty()) {
-            std::println("Stack:\n {}", res2.error().stack);
-        }
+        std::println("Result as string: {}", res2->to_string());
+    }
+
+    // 3. Exception handling
+    auto res3 = engine.eval("throw new Error('Something went wrong!');");
+    if (!res3) {
+        std::println("Caught Error:\n{}", res3.error().to_string());
     }
 
     return 0;

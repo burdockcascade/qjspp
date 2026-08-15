@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <memory>
 #include <expected>
+#include "value.hpp"
 
 namespace qjspp {
 
@@ -16,7 +17,6 @@ namespace qjspp {
         std::string filename;
         int line_number{-1};
 
-        /// Helper to format the full error nicely for printing/logging
         [[nodiscard]] std::string to_string() const {
             std::string result = name + ": " + message;
             if (!stack.empty()) {
@@ -33,7 +33,7 @@ namespace qjspp {
         explicit Engine(size_t memory_limit, size_t stack_size = 0);
         ~Engine();
 
-        // Prevent copying to avoid double-freeing QuickJS native pointers
+        // Prevent copying
         Engine(const Engine&) = delete;
         Engine& operator=(const Engine&) = delete;
 
@@ -43,14 +43,31 @@ namespace qjspp {
 
         // --- Core Execution Methods ---
 
-        /// Evaluates a JavaScript snippet and returns string result (or throws on error)
-        [[nodiscard]] std::expected<std::string, JsError> eval(std::string_view code, std::string_view filename = "<eval>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        /// Evaluates a JavaScript snippet and returns a wrapped Value (or JsError on exception)
+        [[nodiscard]] std::expected<Value, JsError> eval(
+            std::string_view code,
+            std::string_view filename = "<eval>",
+            int eval_flags = JS_EVAL_TYPE_GLOBAL
+        ) const;
 
-        /// Runs a script in Global/Module mode
-        void exec(std::string_view code, std::string_view filename = "<main>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        /// Runs a script in Global/Module mode, throws on exception, and returns the result Value
+        [[nodiscard]] Value exec(
+            std::string_view code,
+            std::string_view filename = "<main>",
+            int eval_flags = JS_EVAL_TYPE_GLOBAL
+        ) const;
 
         /// Manually triggers QuickJS Garbage Collection
         void gc() const;
+
+        // --- Value Factory Methods ---
+
+        [[nodiscard]] Value make_undefined() const { return Value::make_undefined(ctx_); }
+        [[nodiscard]] Value make_null() const { return Value::make_null(ctx_); }
+        [[nodiscard]] Value make_bool(bool v) const { return Value::make_bool(ctx_, v); }
+        [[nodiscard]] Value make_int32(int32_t v) const { return Value::make_int32(ctx_, v); }
+        [[nodiscard]] Value make_double(double v) const { return Value::make_double(ctx_, v); }
+        [[nodiscard]] Value make_string(std::string_view str) const { return Value::make_string(ctx_, str); }
 
         // --- Direct Pointer Access ---
         [[nodiscard]] JSRuntime* runtime() const noexcept { return rt_; }
@@ -60,7 +77,7 @@ namespace qjspp {
         JSRuntime* rt_{nullptr};
         JSContext* ctx_{nullptr};
 
-        void check_exception(JSValueConst result_val) const;
+        void check_exception(const Value& val) const;
         [[nodiscard]] std::string format_exception() const;
         [[nodiscard]] JsError get_and_clear_exception() const;
     };
