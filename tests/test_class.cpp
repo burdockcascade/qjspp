@@ -30,20 +30,20 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
 
     auto point = engine.make_class<TestPoint>("Point");
 
-    point.constructor([](const std::vector<qjspp::Value>& args) {
+    point.constructor([](const qjspp::ArgList& args) {
         double x = args.size() > 0 ? args[0].to_double() : 0.0;
         double y = args.size() > 1 ? args[1].to_double() : 0.0;
         return std::make_unique<TestPoint>(x, y);
     });
 
-    point.instance_method("offset", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+    point.instance_method("offset", [](TestPoint* self, const qjspp::ArgList& args) {
         double dx = args.size() > 0 ? args[0].to_double() : 0.0;
         double dy = args.size() > 1 ? args[1].to_double() : 0.0;
         self->offset(dx, dy);
         return qjspp::Value::make_undefined(args[0].context());
     });
 
-    point.instance_method("distanceTo", [](TestPoint* self, const std::vector<qjspp::Value>& args) {
+    point.instance_method("distanceTo", [](TestPoint* self, const qjspp::ArgList& args) {
         if (args.empty()) {
             throw std::runtime_error("Expected a Point argument");
         }
@@ -105,7 +105,7 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
     qjspp::Value global = engine.global();
 
     auto point = engine.make_class<TestPoint>("Point");
-    point.constructor([](const std::vector<qjspp::Value>& args) {
+    point.constructor([](const qjspp::ArgList& args) {
         double x = args.size() > 0 ? args[0].to_double() : 0.0;
         double y = args.size() > 1 ? args[1].to_double() : 0.0;
         return std::make_unique<TestPoint>(x, y);
@@ -165,13 +165,13 @@ TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
 
     auto point = engine.make_class<TestPoint>("Point");
 
-    point.constructor([](const std::vector<qjspp::Value>& args) {
+    point.constructor([](const qjspp::ArgList& args) {
         double x = args.size() > 0 ? args[0].to_double() : 0.0;
         double y = args.size() > 1 ? args[1].to_double() : 0.0;
         return std::make_unique<TestPoint>(x, y);
     });
 
-    point.static_method("fromPolar", [](const std::vector<qjspp::Value>& args) {
+    point.static_method("fromPolar", [](const qjspp::ArgList& args) {
         double r = args.size() > 0 ? args[0].to_double() : 0.0;
         double theta = args.size() > 1 ? args[1].to_double() : 0.0;
         auto pt = std::make_unique<TestPoint>(r * std::cos(theta), r * std::sin(theta));

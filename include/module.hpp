@@ -5,7 +5,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 #include "value.hpp"
 #include "class.hpp"
 

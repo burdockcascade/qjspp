@@ -8,13 +8,36 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 namespace qjspp {
 
     class Value;
 
-    using NativeFunction = std::function<Value(const std::vector<Value>& args)>;
+    class ArgList {
+    public:
+        ArgList(JSContext* ctx, int argc, JSValueConst* argv) noexcept
+            : ctx_(ctx), argc_(argc), argv_(argv) {}
+
+        [[nodiscard]] size_t size() const noexcept { return static_cast<size_t>(argc_); }
+        [[nodiscard]] bool empty() const noexcept { return argc_ == 0; }
+        [[nodiscard]] JSContext* context() const noexcept { return ctx_; }
+
+        // DECLARATION ONLY: Creates an owning Value on-demand only when accessed
+        [[nodiscard]] Value operator[](size_t index) const;
+
+        // Provides raw access for zero-overhead type checking
+        [[nodiscard]] JSValueConst raw(size_t index) const noexcept {
+            if (index >= static_cast<size_t>(argc_)) return JS_UNDEFINED;
+            return argv_[index];
+        }
+
+    private:
+        JSContext* ctx_;
+        int argc_;
+        JSValueConst* argv_;
+    };
+
+    using NativeFunction = std::function<Value(const ArgList& args)>;
 
     class Value {
     public:
@@ -200,13 +223,8 @@ namespace qjspp {
                 return JS_ThrowTypeError(ctx, "Native function pointer is null or invalid");
             }
 
-            std::vector<Value> args;
             try {
-                args.reserve(argc);
-                for (int i = 0; i < argc; ++i) {
-                    args.emplace_back(ctx, argv[i], /*dup=*/true);
-                }
-
+                ArgList args(ctx, argc, argv);
                 Value result = (*fn)(args);
                 return result.release();
             } catch (const std::exception& e) {
@@ -385,6 +403,11 @@ namespace qjspp {
             JS_FreeValue(ctx_, val_);
             val_ = JS_UNDEFINED;
         }
+    }
+
+    inline Value ArgList::operator[](size_t index) const {
+        if (index >= static_cast<size_t>(argc_)) return Value::make_undefined(ctx_);
+        return {ctx_, argv_[index], true};
     }
 
 } // namespace qjspp

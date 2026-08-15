@@ -161,7 +161,7 @@ TEST_CASE("Engine Value Factory Helpers", "[engine]") {
     }
 
     SECTION("Native function creation via Engine") {
-        qjspp::Value fn = engine.make_function([&engine](const std::vector<qjspp::Value>& args) {
+        qjspp::Value fn = engine.make_function([&engine](const qjspp::ArgList& args) {
             if (args.empty()) return engine.make_int(0);
             return engine.make_int(args[0].to_int() + 100);
         });

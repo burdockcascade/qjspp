@@ -5,7 +5,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 #include <quickjs.h>
 #include "value.hpp"
 
@@ -108,9 +107,9 @@ namespace qjspp {
     template <typename T>
     class ClassBuilder {
     public:
-        using ConstructorFunc = std::function<std::unique_ptr<T>(const std::vector<Value>& args)>;
-        using InstanceMethodFunc = std::function<Value(T* instance, const std::vector<Value>& args)>;
-        using StaticMethodFunc = std::function<Value(const std::vector<Value>& args)>;
+        using ConstructorFunc = std::function<std::unique_ptr<T>(const ArgList& args)>;
+        using InstanceMethodFunc = std::function<Value(T* instance, const ArgList& args)>;
+        using StaticMethodFunc = std::function<Value(const ArgList& args)>;
 
         using PropertyGetterFunc = std::function<Value(JSContext* ctx, T* instance)>;
         using PropertySetterFunc = std::function<void(T* instance, const Value& val)>;
@@ -153,12 +152,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
                     }
 
-                    std::vector<Value> args;
-                    args.reserve(argc);
-                    for (int i = 0; i < argc; ++i) {
-                        args.emplace_back(ctx, argv[i], true);
-                    }
-
+                    ArgList args(ctx, argc, argv);
                     Value res = (*fn_ptr)(inst, args);
                     return res.release();
                 } catch (const std::exception& e) {
@@ -258,11 +252,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Constructor call failed");
                     }
 
-                    std::vector<Value> args;
-                    args.reserve(argc);
-                    for (int i = 0; i < argc; ++i) {
-                        args.emplace_back(ctx, argv[i], true);
-                    }
+                    ArgList args(ctx, argc, argv);
 
                     std::unique_ptr<T> instance = (*ctor_ptr)(args);
                     return make_native_object(ctx, std::move(instance)).release();
@@ -295,11 +285,7 @@ namespace qjspp {
                         auto* fn_ptr = get_function_opaque<StaticMethodFunc>(data[0]);
                         if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
 
-                        std::vector<Value> args;
-                        args.reserve(argc);
-                        for (int i = 0; i < argc; ++i) {
-                            args.emplace_back(ctx, argv[i], true);
-                        }
+                        ArgList args(ctx, argc, argv);
 
                         return (*fn_ptr)(args).release();
                     } catch (const std::exception& e) {

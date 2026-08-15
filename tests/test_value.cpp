@@ -190,7 +190,7 @@ TEST_CASE("Value Native Function Creation", "[value]") {
     auto engine = qjspp::Engine::micro();
 
     SECTION("Exposing C++ lambda as JS function and invoking it") {
-        auto native_fn = engine.make_function([&engine](const std::vector<qjspp::Value>& args) {
+        auto native_fn = engine.make_function([&engine](const qjspp::ArgList& args) {
             REQUIRE(args.size() == 2);
             int a = args[0].to_int();
             int b = args[1].to_int();
