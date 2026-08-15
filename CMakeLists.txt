@@ -97,6 +97,7 @@ if(QJSPP_BUILD_EXAMPLES)
             example_value_call
             example_value_access
             example_value_func
+            example_native_func
     )
 
     foreach(example ${EXAMPLES})
