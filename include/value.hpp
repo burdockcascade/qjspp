@@ -29,7 +29,8 @@ namespace qjspp {
         static Value make_undefined(JSContext* ctx);
         static Value make_null(JSContext* ctx);
         static Value make_bool(JSContext* ctx, bool v);
-        static Value make_int32(JSContext* ctx, int32_t v);
+        static Value make_int(JSContext* ctx, int32_t v);
+        static Value make_long(JSContext* ctx, int64_t v);
         static Value make_double(JSContext* ctx, double v);
         static Value make_string(JSContext* ctx, std::string_view str);
         static Value make_object(JSContext* ctx);

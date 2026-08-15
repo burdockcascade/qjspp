@@ -48,8 +48,12 @@ namespace qjspp {
         return {ctx, JS_NewBool(ctx, v)};
     }
 
-    Value Value::make_int32(JSContext* ctx, int32_t v) {
+    Value Value::make_int(JSContext* ctx, int32_t v) {
         return {ctx, JS_NewInt32(ctx, v)};
+    }
+
+    Value Value::make_long(JSContext* ctx, int64_t v) {
+        return {ctx, JS_NewInt64(ctx, v)};
     }
 
     Value Value::make_double(JSContext* ctx, double v) {
