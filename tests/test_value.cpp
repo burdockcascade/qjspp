@@ -2,7 +2,7 @@
 #include "../include/qjspp.hpp"
 
 TEST_CASE("Value Primitive Factories and Conversions", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Integer creation and conversion") {
         qjspp::Value v = engine.make_int(123);
@@ -57,7 +57,7 @@ TEST_CASE("Value Primitive Factories and Conversions", "[value]") {
 }
 
 TEST_CASE("Value Lifetime, Ownership, and Move Semantics", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Clone duplicates ref count safely") {
         qjspp::Value original = engine.make_string("CloneMe");
@@ -103,7 +103,7 @@ TEST_CASE("Value Lifetime, Ownership, and Move Semantics", "[value]") {
 }
 
 TEST_CASE("Value Object Property Operations", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Creating object and using set/get/has") {
         qjspp::Value obj = engine.make_object();
@@ -132,7 +132,7 @@ TEST_CASE("Value Object Property Operations", "[value]") {
 }
 
 TEST_CASE("Value Array Operations", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Creating array and accessing via index") {
         qjspp::Value arr = engine.make_array();
@@ -149,7 +149,7 @@ TEST_CASE("Value Array Operations", "[value]") {
 }
 
 TEST_CASE("Value Function Calls", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Calling unbound JS function") {
         auto res = engine.eval("(a, b) => a + b");
@@ -185,7 +185,7 @@ TEST_CASE("Value Function Calls", "[value]") {
 }
 
 TEST_CASE("Value Native Function Creation", "[value]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Exposing C++ lambda as JS function and invoking it") {
         auto native_fn = engine.make_function([&engine](const std::vector<qjspp::Value>& args) {

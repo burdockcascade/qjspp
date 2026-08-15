@@ -3,19 +3,19 @@
 
 TEST_CASE("Engine Lifecycle and Resource Management", "[engine]") {
     SECTION("Default construction") {
-        qjspp::Engine engine;
+        auto engine = qjspp::Engine::micro();
         CHECK(engine.runtime() != nullptr);
         CHECK(engine.context() != nullptr);
     }
 
     SECTION("Construction with custom memory limit and stack size") {
-        qjspp::Engine engine(1024 * 1024, 65536); // 1MB limit
+        auto engine = qjspp::Engine(1024 * 1024, 65536); // 1MB limit
         CHECK(engine.runtime() != nullptr);
         CHECK(engine.context() != nullptr);
     }
 
     SECTION("Move construction") {
-        qjspp::Engine engine1;
+        auto engine1 = qjspp::Engine::micro();;
         JSRuntime* original_rt = engine1.runtime();
         JSContext* original_ctx = engine1.context();
 
@@ -28,8 +28,8 @@ TEST_CASE("Engine Lifecycle and Resource Management", "[engine]") {
     }
 
     SECTION("Move assignment") {
-        qjspp::Engine engine1;
-        qjspp::Engine engine2;
+        auto engine1 = qjspp::Engine::micro();;
+        auto engine2 = qjspp::Engine::micro();;
 
         JSRuntime* original_rt1 = engine1.runtime();
         JSContext* original_ctx1 = engine1.context();
@@ -43,14 +43,14 @@ TEST_CASE("Engine Lifecycle and Resource Management", "[engine]") {
     }
 
     SECTION("Manual Garbage Collection invocation") {
-        qjspp::Engine engine;
+        auto engine = qjspp::Engine::micro();
         // Should execute without crashing
         REQUIRE_NOTHROW(engine.gc());
     }
 }
 
 TEST_CASE("Engine Core Execution - eval()", "[engine]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Evaluating valid expressions returning standard values") {
         auto res_int = engine.eval("10 + 20");
@@ -91,7 +91,7 @@ TEST_CASE("Engine Core Execution - eval()", "[engine]") {
 }
 
 TEST_CASE("Engine Core Execution - exec()", "[engine]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Executing valid scripts") {
         qjspp::Value val = engine.exec("let a = 10; let b = 20; a * b;");
@@ -113,7 +113,7 @@ TEST_CASE("Engine Core Execution - exec()", "[engine]") {
 }
 
 TEST_CASE("Engine Value Factory Helpers", "[engine]") {
-    qjspp::Engine engine;
+    auto engine = qjspp::Engine::micro();
 
     SECTION("Primitives and Containers") {
         CHECK(engine.make_undefined().is_undefined());

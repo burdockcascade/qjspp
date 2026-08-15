@@ -28,6 +28,14 @@ namespace qjspp {
 
     class Engine {
     public:
+
+        // Preset configurations
+        [[nodiscard]] static Engine micro()   { return Engine(1 * 1024 * 1024,  256 * 1024); }  // 1MB RAM, 256KB stack
+        [[nodiscard]] static Engine small()  { return Engine(8 * 1024 * 1024,  512 * 1024); }  // 8MB RAM, 512KB stack
+        [[nodiscard]] static Engine medium() { return Engine(32 * 1024 * 1024, 1024 * 1024); } // 32MB RAM, 1MB stack
+        [[nodiscard]] static Engine large()  { return Engine(128 * 1024 * 1024, 2048 * 1024); } // 128MB RAM, 2MB stack
+        [[nodiscard]] static Engine unlimited()   { return {}; }
+
         // --- Lifecycle Management ---
         Engine();
         explicit Engine(size_t memory_limit, size_t stack_size = 0);
