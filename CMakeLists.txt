@@ -46,35 +46,33 @@ endif()
 # -----------------------------------------------------------------------------
 # Target: Unit Tests
 # -----------------------------------------------------------------------------
-#if(QJSPP_BUILD_TESTS)
-#
-#    # Conditionally declare Catch2 only if tests are enabled
-#    FetchContent_Declare(
-#            Catch2
-#            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-#            GIT_TAG        v3.4.0
-#    )
-#    set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-#    set(CATCH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-#    set(CATCH_BUILD_EXTRA_TESTS OFF CACHE BOOL "" FORCE)
-#    FetchContent_MakeAvailable(Catch2)
-#
-#    # Explicitly listing sources is safer and more reliable than file(GLOB)
-#    set(TEST_SOURCES
-#            tests/test_class.cpp
-#            tests/test_engine.cpp
-#            tests/test_module.cpp
-#            tests/test_value.cpp
-#    )
-#
-#    add_executable(unit-tests ${TEST_SOURCES})
-#
-#    target_link_libraries(unit-tests PRIVATE
-#            qjspp
-#            Catch2::Catch2WithMain
-#    )
-#
-#endif()
+if(QJSPP_BUILD_TESTS)
+
+    # Conditionally declare Catch2 only if tests are enabled
+    FetchContent_Declare(
+            Catch2
+            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+            GIT_TAG        v3.15.3
+    )
+    set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(CATCH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(CATCH_BUILD_EXTRA_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(Catch2)
+
+    # Explicitly listing sources is safer and more reliable than file(GLOB)
+    set(TEST_SOURCES
+            tests/test_engine.cpp
+            tests/test_value.cpp
+    )
+
+    add_executable(unit-tests ${TEST_SOURCES})
+
+    target_link_libraries(unit-tests PRIVATE
+            qjspp
+            Catch2::Catch2WithMain
+    )
+
+endif()
 
 # -----------------------------------------------------------------------------
 # Targets: Examples
@@ -95,8 +93,9 @@ if(QJSPP_BUILD_EXAMPLES)
             example_simple
             example_value_basic
             example_value_call
-            example_value_access
-            example_value_func
+            example_arrays
+            example_object
+            example_json
             example_native_func
     )
 

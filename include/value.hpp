@@ -49,7 +49,8 @@ namespace qjspp {
 
         // Conversions
         [[nodiscard]] bool to_bool() const;
-        [[nodiscard]] int32_t to_int32() const;
+        [[nodiscard]] int32_t to_int() const;
+        [[nodiscard]] int64_t to_long() const;
         [[nodiscard]] double to_double() const;
         [[nodiscard]] std::string to_string() const;
 

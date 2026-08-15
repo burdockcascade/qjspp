@@ -36,6 +36,8 @@ namespace qjspp {
         return {ctx_, val_, true};
     }
 
+    // === MAKE VALUES ===
+
     Value Value::make_undefined(JSContext* ctx) {
         return {ctx, JS_UNDEFINED};
     }
@@ -137,6 +139,8 @@ namespace qjspp {
         return Value(ctx, func_val, /*dup=*/false);
     }
 
+    // === IS VALUE ===
+
     bool Value::is_array() const noexcept {
         return ctx_ && JS_IsArray(val_) > 0;
     }
@@ -145,10 +149,18 @@ namespace qjspp {
         return JS_ToBool(ctx_, val_) > 0;
     }
 
-    int32_t Value::to_int32() const {
+    int32_t Value::to_int() const {
         int32_t res = 0;
         if (JS_ToInt32(ctx_, &res, val_) < 0) {
-            throw std::runtime_error("Failed converting JSValue to int32");
+            throw std::runtime_error("Failed converting JSValue to int");
+        }
+        return res;
+    }
+
+    int64_t Value::to_long() const {
+        int64_t res = 0;
+        if (JS_ToInt64(ctx_, &res, val_) < 0) {
+            throw std::runtime_error("Failed converting JSValue to long");
         }
         return res;
     }
