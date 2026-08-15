@@ -6,14 +6,11 @@
 #include <stdexcept>
 #include <memory>
 #include <expected>
+#include <filesystem>
 
 #include "class.hpp"
 #include "module.hpp"
 #include "value.hpp"
-
-namespace std::filesystem {
-    class path;
-}
 
 namespace qjspp {
 
