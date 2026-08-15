@@ -79,7 +79,7 @@ namespace qjspp {
     static JSClassID g_native_fn_class_id = 0;
 
     Value Value::make_function(JSContext* ctx, NativeFunction func) {
-        if (!ctx) return Value();
+        if (!ctx) return {};
 
         JSRuntime* rt = JS_GetRuntime(ctx);
 
@@ -136,7 +136,7 @@ namespace qjspp {
         // Free our local reference to opaque_val (func_val holds a ref now)
         JS_FreeValue(ctx, opaque_val);
 
-        return Value(ctx, func_val, /*dup=*/false);
+        return {ctx, func_val, false};
     }
 
     // === IS VALUE ===
