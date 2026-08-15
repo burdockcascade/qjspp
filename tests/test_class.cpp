@@ -25,7 +25,7 @@ public:
 
 TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.exec("globalThis");
+    qjspp::Value global = engine.eval("globalThis").value();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
@@ -54,7 +54,7 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     global.set("Point", point);
 
     SECTION("Instantiate object via JavaScript constructor") {
-        qjspp::Value result = engine.exec("const p = new Point(10, 20); p;");
+        qjspp::Value result = engine.eval("const p = new Point(10, 20); p;").value();
         REQUIRE(result.is_object());
 
         auto* native_ptr = qjspp::get_native_opaque<TestPoint>(result);
@@ -64,12 +64,12 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     }
 
     SECTION("Invoke native instance methods from JavaScript") {
-        std::ignore = engine.exec(R"(
+        std::ignore = engine.eval(R"(
             const p = new Point(5, 5);
             p.offset(2, 3);
         )");
 
-        qjspp::Value p_val = engine.exec("p");
+        qjspp::Value p_val = engine.eval("p").value();
         auto* native_ptr = qjspp::get_native_opaque<TestPoint>(p_val);
         REQUIRE(native_ptr != nullptr);
         CHECK(native_ptr->x == 7.0);
@@ -77,18 +77,18 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     }
 
     SECTION("Pass native object instance as method argument") {
-        qjspp::Value dist_val = engine.exec(R"(
+        qjspp::Value dist_val = engine.eval(R"(
             const p1 = new Point(0, 0);
             const p2 = new Point(3, 4);
             p1.distanceTo(p2);
-        )");
+        )").value();
 
         CHECK(dist_val.to_double() == 5.0);
     }
 
     SECTION("Throw exception when passing invalid object type") {
         REQUIRE_THROWS_WITH(
-            engine.exec(R"(
+            engine.eval(R"(
                 const p1 = new Point(0, 0);
                 p1.distanceTo({ x: 3, y: 4 }); // Plain object, not a native Point
             )"),
@@ -99,7 +99,7 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
 
 TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.exec("globalThis");
+    qjspp::Value global = engine.eval("globalThis").value();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
@@ -128,12 +128,12 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
     global.set("Point", point);
 
     SECTION("Read and write via property accessors") {
-        std::ignore = engine.exec(R"(
+        std::ignore = engine.eval(R"(
             const p = new Point(10, 20);
             p.x = 30; // Triggers setter
         )");
 
-        qjspp::Value p_val = engine.exec("p");
+        qjspp::Value p_val = engine.eval("p").value();
         auto* native_ptr = qjspp::get_native_opaque<TestPoint>(p_val);
         REQUIRE(native_ptr != nullptr);
 
@@ -141,15 +141,15 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
         CHECK(native_ptr->x == 30.0);
 
         // Ensure JS getter returns the right value
-        qjspp::Value x_val = engine.exec("p.x");
+        qjspp::Value x_val = engine.eval("p.x").value();
         CHECK(x_val.to_double() == 30.0);
     }
 
     SECTION("Access read-only computed property") {
-        qjspp::Value mag_val = engine.exec(R"(
+        qjspp::Value mag_val = engine.eval(R"(
             const p = new Point(3, 4);
             p.magnitude; // Triggers getter
-        )");
+        )").value();
 
         CHECK(mag_val.to_double() == 5.0);
     }
@@ -157,7 +157,7 @@ TEST_CASE("ClassBuilder - Properties", "[class_builder]") {
 
 TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
-    qjspp::Value global = engine.exec("globalThis");
+    qjspp::Value global = engine.eval("globalThis").value();
 
     qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
@@ -176,7 +176,7 @@ TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
     global.set("Point", point);
 
     SECTION("Call static factory method from JS") {
-        qjspp::Value result = engine.exec("Point.fromPolar(10, 0);");
+        qjspp::Value result = engine.eval("Point.fromPolar(10, 0);").value();
         REQUIRE(result.is_object());
 
         auto* native_ptr = qjspp::get_native_opaque<TestPoint>(result);

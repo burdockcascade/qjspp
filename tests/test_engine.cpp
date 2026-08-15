@@ -96,7 +96,7 @@ TEST_CASE("Engine Core Execution - exec()", "[engine]") {
     auto engine = qjspp::Engine::micro();
 
     SECTION("Executing valid scripts") {
-        qjspp::Value val = engine.exec("let a = 10; let b = 20; a * b;");
+        qjspp::Value val = engine.eval("let a = 10; let b = 20; a * b;").value();
         CHECK(val.is_number());
         CHECK(val.to_int() == 200);
     }

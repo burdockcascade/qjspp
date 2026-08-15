@@ -1,4 +1,8 @@
 #include "engine.hpp"
+
+#include <filesystem>
+#include <fstream>
+#include <ios>
 #include <utility>
 
 namespace qjspp {
@@ -118,7 +122,7 @@ namespace qjspp {
         Value result(
             ctx_,
             JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
-            /*dup=*/false
+            false
         );
 
         if (result.is_exception()) {
@@ -128,18 +132,50 @@ namespace qjspp {
         return result;
     }
 
-    Value Engine::exec(std::string_view code, std::string_view filename, int eval_flags) const {
+    void Engine::exec(std::string_view code, std::string_view filename, int eval_flags) const {
         std::string code_str(code);
         std::string filename_str(filename);
 
         Value result(
             ctx_,
             JS_Eval(ctx_, code_str.c_str(), code_str.size(), filename_str.c_str(), eval_flags),
-            /*dup=*/false
+            false
         );
 
         check_exception(result);
-        return result;
+    }
+
+    // Helper function to read file contents into a string
+    static std::string read_file_content(const std::filesystem::path& filepath) {
+        std::ifstream file(filepath, std::ios::in | std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath.string());
+        }
+
+        std::string content;
+        file.seekg(0, std::ios::end);
+        content.resize(file.tellg());
+        file.seekg(0, std::ios::beg);
+        file.read(&content[0], content.size());
+
+        return content;
+    }
+
+    std::expected<Value, JsError> Engine::eval_file(const std::filesystem::path& filepath, int eval_flags) const {
+        try {
+            std::string code = read_file_content(filepath);
+            return eval(code, filepath.string(), eval_flags);
+        } catch (const std::exception& e) {
+            JsError err;
+            err.message = e.what();
+            err.filename = filepath.string();
+            return std::unexpected(err);
+        }
+    }
+
+    void Engine::exec_file(const std::filesystem::path& filepath, int eval_flags) const {
+        std::string code = read_file_content(filepath);
+        return exec(code, filepath.string(), eval_flags);
     }
 
 }

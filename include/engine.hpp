@@ -8,6 +8,10 @@
 #include <expected>
 #include "value.hpp"
 
+namespace std::filesystem {
+    class path;
+}
+
 namespace qjspp {
 
     struct JsError {
@@ -51,19 +55,10 @@ namespace qjspp {
 
         // --- Core Execution Methods ---
 
-        /// Evaluates a JavaScript snippet and returns a wrapped Value (or JsError on exception)
-        [[nodiscard]] std::expected<Value, JsError> eval(
-            std::string_view code,
-            std::string_view filename = "<eval>",
-            int eval_flags = JS_EVAL_TYPE_GLOBAL
-        ) const;
-
-        /// Runs a script in Global/Module mode, throws on exception, and returns the result Value
-        [[nodiscard]] Value exec(
-            std::string_view code,
-            std::string_view filename = "<main>",
-            int eval_flags = JS_EVAL_TYPE_GLOBAL
-        ) const;
+        [[nodiscard]] std::expected<Value, JsError> eval(std::string_view code, std::string_view filename = "<eval>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        [[nodiscard]] std::expected<Value, JsError> eval_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        void exec(std::string_view code, std::string_view filename = "<main>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        void exec_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
 
         /// Manually triggers QuickJS Garbage Collection
         void gc() const;
