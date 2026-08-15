@@ -1,0 +1,21 @@
+name: C++ Unit Tests
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Configure CMake
+        run: cmake -B build -S .
+      - name: Build tests
+        run: cmake --build build
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
