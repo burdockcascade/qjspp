@@ -26,7 +26,7 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
     qjspp::Engine engine = qjspp::Engine::micro();
     qjspp::Value global = engine.global();
 
-    qjspp::Value point = qjspp::ClassBuilder<TestPoint>(engine.context(), "Point")
+    qjspp::Value point = engine.make_class<TestPoint>("Point")
         .constructor([](const std::vector<qjspp::Value>& args) {
             double x = args.size() > 0 ? args[0].to_double() : 0.0;
             double y = args.size() > 1 ? args[1].to_double() : 0.0;
