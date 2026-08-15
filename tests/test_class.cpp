@@ -1,5 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_string.hpp>
+#include <catch2/catch_all.hpp>
 #include <memory>
 #include <cmath>
 #include "qjspp.hpp"
@@ -88,7 +87,7 @@ TEST_CASE("ClassBuilder - Registration and Instantiation", "[class_builder]") {
 
     SECTION("Throw exception when passing invalid object type") {
         REQUIRE_THROWS_WITH(
-            engine.eval(R"(
+            engine.exec(R"(
                 const p1 = new Point(0, 0);
                 p1.distanceTo({ x: 3, y: 4 }); // Plain object, not a native Point
             )"),
