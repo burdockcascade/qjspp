@@ -25,7 +25,10 @@ namespace qjspp {
         int line_number{-1};
 
         [[nodiscard]] std::string to_string() const {
-            std::string result = name + ": " + message;
+            std::string result = message;
+            if (!filename.empty() && line_number >= 0) {
+                result += " (" + filename + ":" + std::to_string(line_number) + ")";
+            }
             if (!stack.empty()) {
                 result += "\nStack Trace:\n" + stack;
             }
@@ -105,9 +108,14 @@ namespace qjspp {
             throw std::runtime_error("Failed to open file: " + filepath.string());
         }
 
-        std::string content;
         file.seekg(0, std::ios::end);
-        content.resize(file.tellg());
+        const auto size = file.tellg();
+        if (size < 0) {
+            throw std::runtime_error("Failed to determine size of file: " + filepath.string());
+        }
+
+        std::string content;
+        content.resize(static_cast<size_t>(size));
         file.seekg(0, std::ios::beg);
         file.read(&content[0], content.size());
 
@@ -134,6 +142,7 @@ namespace qjspp {
         ctx_ = JS_NewContext(rt_);
         if (!ctx_) {
             JS_FreeRuntime(rt_);
+            rt_ = nullptr;
             throw std::runtime_error("Failed to create QuickJS Context");
         }
     }
@@ -141,9 +150,11 @@ namespace qjspp {
     inline Engine::~Engine() {
         if (ctx_) {
             JS_FreeContext(ctx_);
+            ctx_ = nullptr;
         }
         if (rt_) {
             JS_FreeRuntime(rt_);
+            rt_ = nullptr;
         }
     }
 
@@ -169,28 +180,7 @@ namespace qjspp {
     }
 
     inline std::string Engine::format_exception() const {
-        Value exception_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
-
-        std::string err_msg;
-        try {
-            err_msg = exception_val.to_string();
-        } catch (...) {
-            err_msg = "Unknown JavaScript Error";
-        }
-
-        if (exception_val.is_object()) {
-            Value stack_val(ctx_, JS_GetPropertyStr(ctx_, exception_val.raw(), "stack"), /*dup=*/false);
-            if (!stack_val.is_undefined()) {
-                try {
-                    std::string stack_str = stack_val.to_string();
-                    if (!stack_str.empty()) {
-                        err_msg += "\nStack Trace:\n" + stack_str;
-                    }
-                } catch (...) {}
-            }
-        }
-
-        return err_msg;
+        return get_and_clear_exception().to_string();
     }
 
     inline void Engine::check_exception(const Value& val) const {
@@ -210,10 +200,33 @@ namespace qjspp {
         }
 
         if (exception_val.is_object()) {
-            Value stack_val(ctx_, JS_GetPropertyStr(ctx_, exception_val.raw(), "stack"), /*dup=*/false);
-            if (!stack_val.is_undefined() && !stack_val.is_null()) {
+            // Stack Trace extraction
+            if (exception_val.has("stack")) {
                 try {
-                    err.stack = stack_val.to_string();
+                    Value stack_val = exception_val.get("stack");
+                    if (!stack_val.is_undefined() && !stack_val.is_null()) {
+                        err.stack = stack_val.to_string();
+                    }
+                } catch (...) {}
+            }
+
+            // Filename extraction
+            if (exception_val.has("fileName")) {
+                try {
+                    Value file_val = exception_val.get("fileName");
+                    if (file_val.is_string()) {
+                        err.filename = file_val.to_string();
+                    }
+                } catch (...) {}
+            }
+
+            // Line Number extraction
+            if (exception_val.has("lineNumber")) {
+                try {
+                    Value line_val = exception_val.get("lineNumber");
+                    if (line_val.is_number()) {
+                        err.line_number = line_val.to_int();
+                    }
                 } catch (...) {}
             }
         }
@@ -265,7 +278,7 @@ namespace qjspp {
 
     inline void Engine::exec_file(const std::filesystem::path& filepath, int eval_flags) const {
         std::string code = read_file_content(filepath);
-        return exec(code, filepath.string(), eval_flags);
+        exec(code, filepath.string(), eval_flags);
     }
 
 } // namespace qjspp
