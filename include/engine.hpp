@@ -81,7 +81,7 @@ namespace qjspp {
 
         template <typename T>
         ClassBuilder<T> make_class(std::string_view class_name) { return ClassBuilder<T>(context(), class_name); }
-        ModuleBuilder new_module(std::string_view module_name) { return {context(), module_name}; }
+        [[nodiscard]] ModuleBuilder new_module(std::string_view module_name) const { return {context(), module_name}; }
 
         [[nodiscard]] Value global() const { return {ctx_, JS_GetGlobalObject(ctx_), false}; }
 
