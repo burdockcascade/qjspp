@@ -115,8 +115,46 @@ namespace qjspp {
 
         return {ctx, func_val, false};
     }
+    
+    bool Value::is_undefined() const noexcept {
+        return JS_IsUndefined(val_);
+    }
 
-    bool Value::to_bool() const { return JS_ToBool(ctx_, val_); }
+    bool Value::is_null() const noexcept {
+        return JS_IsNull(val_);
+    }
+
+    bool Value::is_bool() const noexcept {
+        return JS_IsBool(val_);
+    }
+
+    bool Value::is_number() const noexcept {
+        return JS_IsNumber(val_);
+    }
+
+    bool Value::is_string() const noexcept {
+        return JS_IsString(val_);
+    }
+
+    bool Value::is_object() const noexcept {
+        return JS_IsObject(val_);
+    }
+
+    bool Value::is_exception() const noexcept {
+        return JS_IsException(val_);
+    }
+
+    bool Value::is_function() const noexcept {
+        return JS_IsFunction(ctx_, val_);
+    }
+
+    bool Value::is_array() const noexcept {
+        return JS_IsArray(val_);
+    }
+
+    bool Value::to_bool() const {
+        return JS_ToBool(ctx_, val_);
+    }
 
     int32_t Value::to_int() const {
         int32_t res = 0;

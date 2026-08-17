@@ -83,15 +83,15 @@ namespace qjspp {
         static Value make_function(JSContext* ctx, NativeFunction func);
 
         // Checks
-        [[nodiscard]] bool is_undefined() const noexcept { return JS_IsUndefined(val_); }
-        [[nodiscard]] bool is_null() const noexcept { return JS_IsNull(val_); }
-        [[nodiscard]] bool is_bool() const noexcept { return JS_IsBool(val_); }
-        [[nodiscard]] bool is_number() const noexcept { return JS_IsNumber(val_); }
-        [[nodiscard]] bool is_string() const noexcept { return JS_IsString(val_); }
-        [[nodiscard]] bool is_object() const noexcept { return JS_IsObject(val_); }
-        [[nodiscard]] bool is_exception() const noexcept { return JS_IsException(val_); }
-        [[nodiscard]] bool is_function() const noexcept { return JS_IsFunction(ctx_, val_); }
-        [[nodiscard]] bool is_array() const noexcept { return JS_IsArray(val_); }
+        [[nodiscard]] bool is_undefined() const noexcept;
+        [[nodiscard]] bool is_null() const noexcept;
+        [[nodiscard]] bool is_bool() const noexcept;
+        [[nodiscard]] bool is_number() const noexcept;
+        [[nodiscard]] bool is_string() const noexcept;
+        [[nodiscard]] bool is_object() const noexcept;
+        [[nodiscard]] bool is_exception() const noexcept;
+        [[nodiscard]] bool is_function() const noexcept;
+        [[nodiscard]] bool is_array() const noexcept;
 
         // Conversions
         [[nodiscard]] bool to_bool() const;
