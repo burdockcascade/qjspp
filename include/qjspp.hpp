@@ -90,6 +90,7 @@ namespace qjspp {
         [[nodiscard]] bool is_string() const noexcept { return JS_IsString(val_); }
         [[nodiscard]] bool is_object() const noexcept { return JS_IsObject(val_); }
         [[nodiscard]] bool is_exception() const noexcept { return JS_IsException(val_); }
+        [[nodiscard]] bool is_function() const noexcept { return JS_IsFunction(ctx_, val_); }
         [[nodiscard]] bool is_array() const noexcept;
 
         // Conversions
