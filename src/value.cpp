@@ -116,8 +116,6 @@ namespace qjspp {
         return {ctx, func_val, false};
     }
 
-    bool Value::is_array() const noexcept { return ctx_ && JS_IsArray(val_); }
-
     bool Value::to_bool() const { return JS_ToBool(ctx_, val_); }
 
     int32_t Value::to_int() const {
