@@ -552,4 +552,77 @@ namespace qjspp {
         [[nodiscard]] JsError get_and_clear_exception() const;
     };
 
+    // =========================================================================
+    // Templated Functions
+    // =========================================================================
+
+    template <typename Class, typename T>
+    void add_property_getset(auto& obj, const char* name, T Class::* member) {
+        obj.property(
+            name,
+            // Getter
+            [member](JSContext* ctx, Class* self) {
+                using DecayedT = std::decay_t<T>;
+
+                if constexpr (std::is_same_v<DecayedT, bool>) {
+                    return Value::make_bool(ctx, self->*member);
+                }
+                else if constexpr (std::is_same_v<DecayedT, std::string>) {
+                    return Value::make_string(ctx, (self->*member).c_str());
+                }
+                else if constexpr (std::is_same_v<DecayedT, const char*>) {
+                    return Value::make_string(ctx, self->*member);
+                }
+                else if constexpr (std::is_enum_v<DecayedT>) {
+                    using Underlying = std::underlying_type_t<DecayedT>;
+                    return Value::make_int(ctx, static_cast<int32_t>(static_cast<Underlying>(self->*member)));
+                }
+                else if constexpr (std::is_integral_v<DecayedT>) {
+                    if constexpr (std::is_unsigned_v<DecayedT> && sizeof(DecayedT) >= 4) {
+                        return Value::make_double(ctx, static_cast<double>(self->*member));
+                    } else {
+                        return Value::make_int(ctx, static_cast<int32_t>(self->*member));
+                    }
+                }
+                else if constexpr (std::is_floating_point_v<DecayedT>) {
+                    return Value::make_double(ctx, static_cast<double>(self->*member));
+                }
+                else {
+                    return make_native_object(ctx, std::make_unique<DecayedT>(self->*member));
+                }
+            },
+            // Setter
+            [member](Class* self, const Value& val) {
+                using DecayedT = std::decay_t<T>;
+
+                if constexpr (std::is_same_v<DecayedT, bool>) {
+                    self->*member = val.to_bool();
+                }
+                else if constexpr (std::is_same_v<DecayedT, std::string>) {
+                    self->*member = val.to_string();
+                }
+                else if constexpr (std::is_enum_v<DecayedT>) {
+                    using Underlying = std::underlying_type_t<DecayedT>;
+                    self->*member = static_cast<DecayedT>(static_cast<Underlying>(val.to_int()));
+                }
+                else if constexpr (std::is_integral_v<DecayedT>) {
+                    if constexpr (std::is_unsigned_v<DecayedT> && sizeof(DecayedT) >= 4) {
+                        self->*member = static_cast<DecayedT>(val.to_double());
+                    } else {
+                        self->*member = static_cast<DecayedT>(val.to_int());
+                    }
+                }
+                else if constexpr (std::is_floating_point_v<DecayedT>) {
+                    self->*member = static_cast<DecayedT>(val.to_double());
+                }
+                else if constexpr (!std::is_same_v<DecayedT, const char*>) {
+                    auto* ptr = qjspp::get_native_opaque<DecayedT>(val);
+                    if (ptr) {
+                        self->*member = *ptr;
+                    }
+                }
+            }
+        );
+    }
+
 } // namespace qjspp
