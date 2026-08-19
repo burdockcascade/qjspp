@@ -99,6 +99,7 @@ namespace qjspp {
         [[nodiscard]] int64_t to_long() const;
         [[nodiscard]] double to_double() const;
         [[nodiscard]] std::string to_string() const;
+        [[nodiscard]] std::vector<Value> to_vector() const;
 
         [[nodiscard]] Value call(std::initializer_list<Value> args) const;
         [[nodiscard]] Value call_method(const Value& this_obj, std::initializer_list<Value> args = {}) const;

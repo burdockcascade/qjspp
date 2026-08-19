@@ -191,6 +191,29 @@ namespace qjspp {
         return result;
     }
 
+    // In qjspp.cpp:
+    std::vector<Value> Value::to_vector() const {
+        if (!ctx_) {
+            throw std::runtime_error("Cannot convert to array: JSContext is null");
+        }
+
+        if (!is_array()) {
+            throw std::runtime_error("Cannot convert JSValue to array: Value is not an array");
+        }
+
+        Value length_val = get("length");
+        auto length = static_cast<uint32_t>(length_val.to_int());
+
+        std::vector<Value> result;
+        result.reserve(length);
+
+        for (uint32_t i = 0; i < length; ++i) {
+            result.push_back(get(i));
+        }
+
+        return result;
+    }
+
     bool Value::has(std::string_view key) const {
         if (!ctx_ || !is_object()) return false;
         JSAtom atom = JS_NewAtomLen(ctx_, key.data(), key.size());
