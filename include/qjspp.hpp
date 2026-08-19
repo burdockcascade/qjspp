@@ -82,6 +82,9 @@ namespace qjspp {
         static Value make_array(JSContext* ctx);
         static Value make_function(JSContext* ctx, NativeFunction func);
 
+        template<class T>
+        static Value make_native_object(JSContext *ctx, std::unique_ptr<T> ptr);
+
         // Checks
         [[nodiscard]] bool is_undefined() const noexcept;
         [[nodiscard]] bool is_null() const noexcept;
@@ -135,21 +138,6 @@ namespace qjspp {
 
     template <typename T>
     JSClassID ClassId<T>::id = 0;
-
-    // Helper functions for native pointer conversions
-    template <typename T>
-    Value make_native_object(JSContext* ctx, std::unique_ptr<T> ptr) {
-        if (!ctx || !ptr) return {};
-        JSClassID cid = ClassId<T>::id;
-        if (cid == 0) return {};
-
-        JSValue obj = JS_NewObjectClass(ctx, cid);
-        if (JS_IsException(obj)) return {ctx, obj, false};
-
-        // Relinquish unique_ptr ownership only after object creation succeeds
-        JS_SetOpaque(obj, ptr.release());
-        return {ctx, obj, false};
-    }
 
     template <typename T>
     T* get_native_opaque(const Value& val) {
@@ -372,7 +360,7 @@ namespace qjspp {
                     ArgList args(ctx, argc, argv);
 
                     std::unique_ptr<T> instance = (*ctor_ptr)(args);
-                    return make_native_object(ctx, std::move(instance)).release();
+                    return Value::make_native_object(ctx, std::move(instance)).release();
                 } catch (const std::exception& e) {
                     return JS_ThrowTypeError(ctx, "%s", e.what());
                 } catch (...) {
@@ -530,6 +518,9 @@ namespace qjspp {
         [[nodiscard]] Value make_array() const { return Value::make_array(ctx_); }
         [[nodiscard]] Value make_function(NativeFunction func) const { return Value::make_function(ctx_, std::move(func)); }
 
+        template <typename T>
+        [[nodiscard]] Value make_native_object(std::unique_ptr<T> ptr) const { return Value::make_native_object(ctx_, std::move(ptr)); }
+
         [[nodiscard]] Value make_value(const int32_t v) const { return Value::make_int(ctx_, v); }
         [[nodiscard]] Value make_value(const double v) const { return Value::make_double(ctx_, v); }
         [[nodiscard]] Value make_value(const std::string_view v) const { return Value::make_string(ctx_, v); }
@@ -552,6 +543,50 @@ namespace qjspp {
         [[nodiscard]] std::string format_exception() const;
         [[nodiscard]] JsError get_and_clear_exception() const;
     };
+
+    template<class T>
+    Value Value::make_native_object(JSContext* ctx, std::unique_ptr<T> ptr) {
+        if (!ptr || !ctx) {
+            return make_null(ctx);
+        }
+
+        JSRuntime* rt = JS_GetRuntime(ctx);
+        JSClassID class_id = ClassId<T>::id;
+
+        // Ensure class is registered
+        if (class_id == 0) {
+            JS_NewClassID(rt, &ClassId<T>::id);
+            class_id = ClassId<T>::id;
+        }
+
+        if (!JS_IsRegisteredClass(rt, class_id)) {
+            JSClassDef class_def{};
+            class_def.class_name = typeid(T).name();
+            class_def.finalizer = [](JSRuntime*, JSValue val) {
+                auto* instance = static_cast<T*>(JS_GetOpaque(val, ClassId<T>::id));
+                delete instance;
+            };
+            JS_NewClass(rt, class_id, &class_def);
+        }
+
+        JSValue obj = JS_NewObjectClass(ctx, class_id);
+        if (JS_IsException(obj)) {
+            return make_undefined(ctx);
+        }
+
+        // Transfer ownership of raw pointer to QuickJS object
+        T* raw_ptr = ptr.release();
+        JS_SetOpaque(obj, raw_ptr);
+
+        // Attach prototype if it exists
+        JSValue proto = JS_GetClassProto(ctx, class_id);
+        if (!JS_IsUndefined(proto)) {
+            JS_SetPrototype(ctx, obj, proto);
+            JS_FreeValue(ctx, proto);
+        }
+
+        return Value(ctx, obj, false);
+    }
 
     // =========================================================================
     // Templated Functions
@@ -589,7 +624,7 @@ namespace qjspp {
                     return Value::make_double(ctx, static_cast<double>(self->*member));
                 }
                 else {
-                    return make_native_object(ctx, std::make_unique<DecayedT>(self->*member));
+                    return Value::make_native_object(ctx, std::make_unique<DecayedT>(self->*member));
                 }
             },
             // Setter
