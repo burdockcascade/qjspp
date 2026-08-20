@@ -52,17 +52,9 @@ namespace qjspp {
     Value Value::make_int(JSContext* ctx, int32_t v) { return {ctx, JS_NewInt32(ctx, v)}; }
     Value Value::make_long(JSContext* ctx, int64_t v) { return {ctx, JS_NewInt64(ctx, v)}; }
     Value Value::make_double(JSContext* ctx, double v) { return {ctx, JS_NewFloat64(ctx, v)}; }
-    Value Value::make_string(JSContext* ctx, std::string_view str) {
-        return {ctx, JS_NewStringLen(ctx, str.data(), str.size())};
-    }
-    Value Value::make_object(JSContext* ctx) {
-        if (!ctx) return {};
-        return {ctx, JS_NewObject(ctx)};
-    }
-    Value Value::make_array(JSContext* ctx) {
-        if (!ctx) return {};
-        return {ctx, JS_NewArray(ctx)};
-    }
+    Value Value::make_string(JSContext* ctx, std::string_view str) { return {ctx, JS_NewStringLen(ctx, str.data(), str.size())}; }
+    Value Value::make_object(JSContext* ctx) { return {ctx, JS_NewObject(ctx)}; }
+    Value Value::make_array(JSContext* ctx) { return {ctx, JS_NewArray(ctx)}; }
 
     Value Value::make_function(JSContext* ctx, NativeFunction func) {
         if (!ctx) return {};
