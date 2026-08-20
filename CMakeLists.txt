@@ -22,9 +22,7 @@ if(QJSPP_INCLUDE_QUICKJS)
 endif()
 
 add_library(qjspp STATIC
-        src/engine.cpp
-        src/value.cpp
-        src/module.cpp
+        src/qjspp.cpp
 )
 
 # Point PUBLIC headers to the include directory

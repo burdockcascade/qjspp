@@ -2,9 +2,234 @@
 
 #include <fstream>
 #include <stdexcept>
-#include <vector>
 
 namespace qjspp {
+
+    static std::string read_file_content(const std::filesystem::path& filepath) {
+        std::ifstream file(filepath, std::ios::in | std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath.string());
+        }
+
+        file.seekg(0, std::ios::end);
+        const auto size = file.tellg();
+        if (size < 0) {
+            throw std::runtime_error("Failed to determine size of file: " + filepath.string());
+        }
+        file.seekg(0, std::ios::beg);
+
+        std::string content;
+        content.resize_and_overwrite(size, [&file](char* buf, size_t n) {
+            file.read(buf, n);
+            return file.gcount();
+        });
+
+        return content;
+    }
+
+    Engine::Engine() : Engine(0, 0) {}
+
+    Engine::Engine(const size_t memory_limit, const size_t stack_size) {
+        rt_ = JS_NewRuntime();
+        if (!rt_) {
+            throw std::runtime_error("Failed to create QuickJS Runtime");
+        }
+
+        if (memory_limit > 0) {
+            JS_SetMemoryLimit(rt_, memory_limit);
+        }
+        if (stack_size > 0) {
+            JS_SetMaxStackSize(rt_, stack_size);
+        }
+
+        ctx_ = JS_NewContext(rt_);
+        if (!ctx_) {
+            JS_FreeRuntime(rt_);
+            rt_ = nullptr;
+            throw std::runtime_error("Failed to create QuickJS Context");
+        }
+    }
+
+    Engine::~Engine() {
+        if (ctx_) {
+            JS_FreeContext(ctx_);
+            ctx_ = nullptr;
+        }
+        if (rt_) {
+            JS_FreeRuntime(rt_);
+            rt_ = nullptr;
+        }
+    }
+
+    Engine::Engine(Engine&& other) noexcept
+        : rt_(std::exchange(other.rt_, nullptr)),
+          ctx_(std::exchange(other.ctx_, nullptr)) {}
+
+    Engine& Engine::operator=(Engine&& other) noexcept {
+        if (this != &other) {
+            if (ctx_) JS_FreeContext(ctx_);
+            if (rt_) JS_FreeRuntime(rt_);
+
+            rt_ = std::exchange(other.rt_, nullptr);
+            ctx_ = std::exchange(other.ctx_, nullptr);
+        }
+        return *this;
+    }
+
+    void Engine::gc() const {
+        if (rt_) {
+            JS_RunGC(rt_);
+        }
+    }
+
+    std::string Engine::format_exception() const {
+        return get_and_clear_exception().to_string();
+    }
+
+    void Engine::check_exception(const Value& val) const {
+        if (val.is_exception()) {
+            throw std::runtime_error(format_exception());
+        }
+    }
+
+    JsError Engine::get_and_clear_exception() const {
+        Value exception_val(ctx_, JS_GetException(ctx_), /*dup=*/false);
+
+        JsError err;
+        try {
+            err.message = exception_val.to_string();
+        } catch (...) {
+            err.message = "Unknown JavaScript Error";
+        }
+
+        if (exception_val.is_object()) {
+            if (exception_val.has("stack")) {
+                try {
+                    Value stack_val = exception_val.get("stack");
+                    if (!stack_val.is_undefined() && !stack_val.is_null()) {
+                        err.stack = stack_val.to_string();
+                    }
+                } catch (...) {}
+            }
+
+            if (exception_val.has("fileName")) {
+                try {
+                    Value file_val = exception_val.get("fileName");
+                    if (file_val.is_string()) {
+                        err.filename = file_val.to_string();
+                    }
+                } catch (...) {}
+            }
+
+            if (exception_val.has("lineNumber")) {
+                try {
+                    Value line_val = exception_val.get("lineNumber");
+                    if (line_val.is_number()) {
+                        err.line_number = line_val.to_int();
+                    }
+                } catch (...) {}
+            }
+        }
+
+        return err;
+    }
+
+    std::expected<Value, JsError> Engine::eval(std::string_view code, const char* filename, int eval_flags) const {
+        Value result(
+            ctx_,
+            JS_Eval(ctx_, code.data(), code.size(), filename, eval_flags),
+            false
+        );
+
+        if (result.is_exception()) {
+            return std::unexpected(get_and_clear_exception());
+        }
+
+        return result;
+    }
+
+    void Engine::exec(std::string_view code, const char* filename, int eval_flags) const {
+        Value result(
+            ctx_,
+            JS_Eval(ctx_, code.data(), code.size(), filename, eval_flags),
+            false
+        );
+
+        check_exception(result);
+    }
+
+    std::expected<Value, JsError> Engine::eval_file(const std::filesystem::path& filepath, int eval_flags) const {
+        try {
+            std::string code = read_file_content(filepath);
+            return eval(code, filepath.string().c_str(), eval_flags);
+        } catch (const std::exception& e) {
+            JsError err;
+            err.message = e.what();
+            err.filename = filepath.string();
+            return std::unexpected(err);
+        }
+    }
+
+    void Engine::exec_file(const std::filesystem::path& filepath, int eval_flags) const {
+        std::string code = read_file_content(filepath);
+        exec(code, filepath.string().c_str(), eval_flags);
+    }
+
+    struct ModuleInitContext {
+        std::vector<std::pair<std::string, Value>> exports;
+    };
+
+    void ModuleBuilder::finalize() {
+        if (!ctx_) return;
+
+        auto init_ctx = std::make_unique<ModuleInitContext>();
+        init_ctx->exports = std::move(exports_);
+
+        JSModuleDef* mod = JS_NewCModule(
+            ctx_,
+            name_.c_str(),
+            [](JSContext* ctx, JSModuleDef* m) -> int {
+                auto* init_ctx = static_cast<ModuleInitContext*>(JS_GetOpaque(JS_GetImportMeta(ctx, m), 0));
+
+                JSValue meta = JS_GetImportMeta(ctx, m);
+                JSValue ptr_val = JS_GetPropertyStr(ctx, meta, "_mod_ctx");
+
+                int64_t raw_ptr = 0;
+                if (JS_ToInt64(ctx, &raw_ptr, ptr_val) < 0 || raw_ptr == 0) {
+                    JS_FreeValue(ctx, ptr_val);
+                    JS_FreeValue(ctx, meta);
+                    return -1;
+                }
+
+                auto* context_data = reinterpret_cast<ModuleInitContext*>(static_cast<intptr_t>(raw_ptr));
+                JS_FreeValue(ctx, ptr_val);
+
+                for (auto& [export_name, val] : context_data->exports) {
+                    if (JS_SetModuleExport(ctx, m, export_name.c_str(), val.clone().release()) < 0) {
+                        JS_FreeValue(ctx, meta);
+                        delete context_data;
+                        return -1;
+                    }
+                }
+
+                JS_DeleteProperty(ctx, meta, JS_NewAtom(ctx, "_mod_ctx"), 0);
+                JS_FreeValue(ctx, meta);
+                delete context_data;
+                return 0;
+            }
+        );
+
+        if (!mod) return;
+
+        for (const auto& [export_name, _] : init_ctx->exports) {
+            if (JS_AddModuleExport(ctx_, mod, export_name.c_str()) < 0) return;
+        }
+
+        JSValue meta = JS_GetImportMeta(ctx_, mod);
+        ModuleInitContext* raw_init_ctx = init_ctx.release();
+        JS_SetPropertyStr(ctx_, meta, "_mod_ctx", JS_NewInt64(ctx_, reinterpret_cast<intptr_t>(raw_init_ctx)));
+        JS_FreeValue(ctx_, meta);
+    }
 
     Value::Value(JSContext* ctx, JSValue val, bool dup) noexcept
         : ctx_(ctx), val_(val) {
@@ -107,7 +332,7 @@ namespace qjspp {
 
         return {ctx, func_val, false};
     }
-    
+
     bool Value::is_undefined() const noexcept {
         return JS_IsUndefined(val_);
     }
