@@ -171,11 +171,11 @@ TEST_CASE("ClassBuilder - Static Methods", "[class_builder]") {
         return std::make_unique<TestPoint>(x, y);
     });
 
-    point.static_method("fromPolar", [](const qjspp::ArgList& args) {
+    point.static_method("fromPolar", [&engine](const qjspp::ArgList& args) {
         double r = args.size() > 0 ? args[0].to_double() : 0.0;
         double theta = args.size() > 1 ? args[1].to_double() : 0.0;
         auto pt = std::make_unique<TestPoint>(r * std::cos(theta), r * std::sin(theta));
-        return qjspp::make_native_object(args[0].context(), std::move(pt));
+        return engine.make_native_object(std::move(pt));
     });
 
     global.set("Point", point.build());
