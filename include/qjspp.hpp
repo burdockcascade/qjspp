@@ -25,12 +25,16 @@ namespace qjspp {
 
     class ArgList {
     public:
-        ArgList(JSContext* ctx, int argc, JSValueConst* argv) noexcept
-            : ctx_(ctx), argc_(argc), argv_(argv) {}
+        // Update constructor to take this_val
+        ArgList(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) noexcept
+            : ctx_(ctx), this_val_(this_val), argc_(argc), argv_(argv) {}
 
         [[nodiscard]] size_t size() const noexcept { return static_cast<size_t>(argc_); }
         [[nodiscard]] bool empty() const noexcept { return argc_ == 0; }
         [[nodiscard]] JSContext* context() const noexcept { return ctx_; }
+
+        // Retrieve 'this' as an owning Value wrapper
+        [[nodiscard]] Value get_this() const;
 
         // Creates an owning Value on-demand only when accessed
         [[nodiscard]] Value operator[](size_t index) const;
@@ -43,6 +47,7 @@ namespace qjspp {
 
     private:
         JSContext* ctx_;
+        JSValueConst this_val_{JS_UNDEFINED};
         int argc_;
         JSValueConst* argv_;
     };
@@ -257,7 +262,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
                     }
 
-                    ArgList args(ctx, argc, argv);
+                    ArgList args(ctx, this_val, argc, argv);
                     Value res = (*fn_ptr)(inst, args);
                     return res.release();
                 } catch (const std::exception& e) {
@@ -357,7 +362,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Constructor call failed");
                     }
 
-                    ArgList args(ctx, argc, argv);
+                    ArgList args(ctx, this_val, argc, argv);
 
                     std::unique_ptr<T> instance = (*ctor_ptr)(args);
                     return Value::make_native_object(ctx, std::move(instance)).release();
@@ -390,7 +395,7 @@ namespace qjspp {
                         auto* fn_ptr = get_function_opaque<StaticMethodFunc>(data[0]);
                         if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
 
-                        ArgList args(ctx, argc, argv);
+                        ArgList args(ctx, this_val, argc, argv);
 
                         return (*fn_ptr)(args).release();
                     } catch (const std::exception& e) {

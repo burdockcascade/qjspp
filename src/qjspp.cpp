@@ -5,6 +5,15 @@
 
 namespace qjspp {
 
+    Value ArgList::get_this() const {
+        return {ctx_, this_val_, true}; // Duplicate handle so returned Value owns its reference
+    }
+
+    Value ArgList::operator[](size_t index) const {
+        if (index >= static_cast<size_t>(argc_)) return Value::make_undefined(ctx_);
+        return {ctx_, argv_[index], true};
+    }
+
     static std::string read_file_content(const std::filesystem::path& filepath) {
         std::ifstream file(filepath, std::ios::in | std::ios::binary);
         if (!file.is_open()) {
@@ -314,7 +323,7 @@ namespace qjspp {
             }
 
             try {
-                ArgList args(ctx, argc, argv);
+                ArgList args(ctx, this_val, argc, argv); // Pass this_val
                 Value result = (*fn)(args);
                 return result.release();
             } catch (const std::exception& e) {
@@ -502,11 +511,6 @@ namespace qjspp {
             JS_FreeValue(ctx_, val_);
             val_ = JS_UNDEFINED;
         }
-    }
-
-    Value ArgList::operator[](size_t index) const {
-        if (index >= static_cast<size_t>(argc_)) return Value::make_undefined(ctx_);
-        return {ctx_, argv_[index], true};
     }
 
 } // namespace qjspp
