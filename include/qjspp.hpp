@@ -106,6 +106,8 @@ namespace qjspp {
         [[nodiscard]] int32_t to_int() const;
         [[nodiscard]] int64_t to_long() const;
         [[nodiscard]] double to_double() const;
+        [[nodiscard]] float to_float() const;
+
         [[nodiscard]] std::string to_string() const;
         [[nodiscard]] std::vector<Value> to_vector() const;
 

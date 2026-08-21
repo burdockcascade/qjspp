@@ -406,6 +406,14 @@ namespace qjspp {
         return res;
     }
 
+    float Value::to_float() const {
+        double res = 0.0;
+        if (JS_ToFloat64(ctx_, &res, val_) < 0) {
+            throw std::runtime_error("Failed converting JSValue to double: " + fetch_and_clear_exception());
+        }
+        return static_cast<float>(res);
+    }
+
     std::string Value::to_string() const {
         if (!ctx_) return "";
         const char* str = JS_ToCString(ctx_, val_);
