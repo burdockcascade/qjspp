@@ -16,7 +16,7 @@ if(QJSPP_INCLUDE_QUICKJS)
     FetchContent_Declare(
             quickjs-ng
             GIT_REPOSITORY https://github.com/quickjs-ng/quickjs.git
-            GIT_TAG        v0.16.2
+            GIT_TAG        v0.17.0
     )
     FetchContent_MakeAvailable(quickjs-ng)
 endif()
