@@ -516,11 +516,11 @@ namespace qjspp {
         // --- Value Factory Methods ---
         [[nodiscard]] Value make_undefined() const { return Value::make_undefined(ctx_); }
         [[nodiscard]] Value make_null() const { return Value::make_null(ctx_); }
-        [[nodiscard]] Value make_bool(bool v) const { return Value::make_bool(ctx_, v); }
-        [[nodiscard]] Value make_int(int32_t v) const { return Value::make_int(ctx_, v); }
-        [[nodiscard]] Value make_long(int64_t v) const { return Value::make_long(ctx_, v); }
-        [[nodiscard]] Value make_double(double v) const { return Value::make_double(ctx_, v); }
-        [[nodiscard]] Value make_string(std::string_view str) const { return Value::make_string(ctx_, str); }
+        [[nodiscard]] Value make_bool(const bool v) const { return Value::make_bool(ctx_, v); }
+        [[nodiscard]] Value make_int(const int32_t v) const { return Value::make_int(ctx_, v); }
+        [[nodiscard]] Value make_long(const int64_t v) const { return Value::make_long(ctx_, v); }
+        [[nodiscard]] Value make_double(const double v) const { return Value::make_double(ctx_, v); }
+        [[nodiscard]] Value make_string(const std::string_view str) const { return Value::make_string(ctx_, str); }
         [[nodiscard]] Value make_object() const { return Value::make_object(ctx_); }
         [[nodiscard]] Value make_array() const { return Value::make_array(ctx_); }
         [[nodiscard]] Value make_function(NativeFunction func) const { return Value::make_function(ctx_, std::move(func)); }
@@ -537,6 +537,13 @@ namespace qjspp {
         [[nodiscard]] ModuleBuilder new_module(std::string_view module_name) const { return {context(), module_name}; }
 
         [[nodiscard]] Value global() const { return {ctx_, JS_GetGlobalObject(ctx_), false}; }
+
+        void set_global(const std::string_view name, const Value& val) const { global().set(name, val); }
+        void set_global(const std::string_view name, const bool val) const { set_global(name, make_bool(val)); }
+        void set_global(const std::string_view name, const int32_t val) const { set_global(name, make_int(val)); }
+        void set_global(const std::string_view name, const int64_t val) const { set_global(name, make_long(val)); }
+        void set_global(const std::string_view name, const double val) const { set_global(name, make_double(val)); }
+        void set_global(const std::string_view name, const std::string_view val) const { set_global(name, make_string(val)); }
 
         // --- Direct Pointer Access ---
         [[nodiscard]] JSRuntime* runtime() const noexcept { return rt_; }
