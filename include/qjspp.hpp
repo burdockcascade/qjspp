@@ -24,36 +24,39 @@ namespace qjspp {
 
     class Value;
 
-    class ArgList {
+    class CallContext {
     public:
-        // Update constructor to take this_val
-        ArgList(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) noexcept
-            : ctx_(ctx), this_val_(this_val), argc_(argc), argv_(argv) {}
+        CallContext(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) noexcept
+            : ctx_(ctx),
+              this_val_(this_val),
+              args_(argv, static_cast<size_t>(argc > 0 ? argc : 0)) {}
 
-        [[nodiscard]] size_t size() const noexcept { return static_cast<size_t>(argc_); }
-        [[nodiscard]] bool empty() const noexcept { return argc_ == 0; }
+        CallContext(JSContext* ctx, JSValueConst this_val, std::span<const JSValueConst> args) noexcept
+            : ctx_(ctx), this_val_(this_val), args_(args) {}
+
+        [[nodiscard]] size_t size() const noexcept { return args_.size(); }
+        [[nodiscard]] bool empty() const noexcept { return args_.empty(); }
         [[nodiscard]] JSContext* context() const noexcept { return ctx_; }
+        [[nodiscard]] std::span<const JSValueConst> raw_span() const noexcept { return args_; }
 
         // Retrieve 'this' as an owning Value wrapper
         [[nodiscard]] Value get_this() const;
 
-        // Creates an owning Value on-demand only when accessed
+        // Creates an owning Value on-demand only when accessed (or undefined if out of range)
         [[nodiscard]] Value operator[](size_t index) const;
 
-        // Provides raw access for zero-overhead type checking
+        // Zero-overhead raw access for quick type inspection
         [[nodiscard]] JSValueConst raw(size_t index) const noexcept {
-            if (index >= static_cast<size_t>(argc_)) return JS_UNDEFINED;
-            return argv_[index];
+            return index < args_.size() ? args_[index] : JS_UNDEFINED;
         }
 
     private:
-        JSContext* ctx_;
+        JSContext* ctx_{nullptr};
         JSValueConst this_val_{JS_UNDEFINED};
-        int argc_;
-        JSValueConst* argv_;
+        std::span<const JSValueConst> args_{};
     };
 
-    using NativeFunction = std::function<Value(const ArgList& args)>;
+    using NativeFunction = std::function<Value(const CallContext& args)>;
 
     // Global state for native functions using atomic initialization
     inline std::atomic<JSClassID> g_native_fn_class_id{0};
@@ -220,9 +223,9 @@ namespace qjspp {
     template <typename T>
     class ClassBuilder {
     public:
-        using ConstructorFunc = std::function<std::unique_ptr<T>(const ArgList& args)>;
-        using InstanceMethodFunc = std::function<Value(T* instance, const ArgList& args)>;
-        using StaticMethodFunc = std::function<Value(const ArgList& args)>;
+        using ConstructorFunc = std::function<std::unique_ptr<T>(const CallContext& args)>;
+        using InstanceMethodFunc = std::function<Value(T* instance, const CallContext& args)>;
+        using StaticMethodFunc = std::function<Value(const CallContext& args)>;
 
         using PropertyGetterFunc = std::function<Value(JSContext* ctx, T* instance)>;
         using PropertySetterFunc = std::function<void(T* instance, const Value& val)>;
@@ -265,7 +268,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Invalid Native Object Instance or Method");
                     }
 
-                    ArgList args(ctx, this_val, argc, argv);
+                    CallContext args(ctx, this_val, argc, argv);
                     Value res = (*fn_ptr)(inst, args);
                     return res.release();
                 } catch (const std::exception& e) {
@@ -365,7 +368,7 @@ namespace qjspp {
                         return JS_ThrowTypeError(ctx, "Constructor call failed");
                     }
 
-                    ArgList args(ctx, this_val, argc, argv);
+                    CallContext args(ctx, this_val, argc, argv);
 
                     std::unique_ptr<T> instance = (*ctor_ptr)(args);
                     return Value::make_native_object(ctx, std::move(instance)).release();
@@ -398,7 +401,7 @@ namespace qjspp {
                         auto* fn_ptr = get_function_opaque<StaticMethodFunc>(data[0]);
                         if (!fn_ptr || !*fn_ptr) return JS_ThrowTypeError(ctx, "Invalid static method call");
 
-                        ArgList args(ctx, this_val, argc, argv);
+                        CallContext args(ctx, this_val, argc, argv);
 
                         return (*fn_ptr)(args).release();
                     } catch (const std::exception& e) {

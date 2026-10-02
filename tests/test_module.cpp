@@ -17,12 +17,12 @@ TEST_CASE("ModuleBuilder export functionality", "[module]") {
 
         auto calc = engine.make_class<Calculator>("Calculator");
 
-        calc.constructor([](const qjspp::ArgList& args) {
+        calc.constructor([](const qjspp::CallContext& args) {
             double initial = args.empty() ? 0.0 : args[0].to_double();
             return std::make_unique<Calculator>(initial);
         });
 
-        calc.instance_method("add", [](Calculator* calc, const qjspp::ArgList& args) {
+        calc.instance_method("add", [](Calculator* calc, const qjspp::CallContext& args) {
             REQUIRE(!args.empty());
             return qjspp::Value::make_double(args[0].context(), calc->add(args[0].to_double()));
         });
@@ -35,7 +35,7 @@ TEST_CASE("ModuleBuilder export functionality", "[module]") {
         auto mod = engine.new_module("math_utils");
         mod.export_value("PI", engine.make_double(3.14159));
         mod.export_value("version", engine.make_string("1.0.0"));
-        mod.export_function("add", [](const qjspp::ArgList& args) {
+        mod.export_function("add", [](const qjspp::CallContext& args) {
             REQUIRE(args.size() >= 2);
             double a = args[0].to_double();
             double b = args[1].to_double();

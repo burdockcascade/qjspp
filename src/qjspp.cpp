@@ -5,13 +5,15 @@
 
 namespace qjspp {
 
-    Value ArgList::get_this() const {
-        return {ctx_, this_val_, true}; // Duplicate handle so returned Value owns its reference
+    Value CallContext::get_this() const {
+        return {ctx_, this_val_, /*dup=*/true};
     }
 
-    Value ArgList::operator[](size_t index) const {
-        if (index >= static_cast<size_t>(argc_)) return Value::make_undefined(ctx_);
-        return {ctx_, argv_[index], true};
+    Value CallContext::operator[](size_t index) const {
+        if (index >= args_.size()) {
+            return Value::make_undefined(ctx_);
+        }
+        return {ctx_, args_[index], /*dup=*/true};
     }
 
     static std::string read_file_content(const std::filesystem::path& filepath) {
@@ -336,7 +338,7 @@ namespace qjspp {
             }
 
             try {
-                ArgList args(ctx, this_val, argc, argv); // Pass this_val
+                CallContext args(ctx, this_val, argc, argv); // Pass this_val
                 Value result = (*fn)(args);
                 return result.release();
             } catch (const std::exception& e) {
