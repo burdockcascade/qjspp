@@ -9,6 +9,7 @@
 #include <ios>
 #include <memory>
 #include <quickjs.h>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -509,6 +510,7 @@ namespace qjspp {
         [[nodiscard]] std::expected<Value, JsError> eval_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
         void exec(std::string_view code, const char* filename = "<main>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
         void exec_file(const std::filesystem::path& filepath, int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
+        void exec_bytecode(std::span<const uint8_t> bytes) const;
 
         /// Manually triggers QuickJS Garbage Collection
         void gc() const;

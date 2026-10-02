@@ -143,6 +143,7 @@ namespace qjspp {
         return err;
     }
 
+    // Executes JavaScript code. Returns std::expected with Value on success or JsError on failure.
     std::expected<Value, JsError> Engine::eval(std::string_view code, const char* filename, int eval_flags) const {
         Value result(
             ctx_,
@@ -157,7 +158,8 @@ namespace qjspp {
         return result;
     }
 
-    void Engine::exec(std::string_view code, const char* filename, int eval_flags) const {
+    // Executes JavaScript code. Throws std::runtime_error on error.
+    void Engine::exec(const std::string_view code, const char* filename, const int eval_flags) const {
         Value result(
             ctx_,
             JS_Eval(ctx_, code.data(), code.size(), filename, eval_flags),
@@ -167,9 +169,10 @@ namespace qjspp {
         check_exception(result);
     }
 
-    std::expected<Value, JsError> Engine::eval_file(const std::filesystem::path& filepath, int eval_flags) const {
+    // Executes a JavaScript file. Returns std::expected with Value on success or JsError on failure.
+    std::expected<Value, JsError> Engine::eval_file(const std::filesystem::path& filepath, const int eval_flags) const {
         try {
-            std::string code = read_file_content(filepath);
+            const std::string code = read_file_content(filepath);
             return eval(code, filepath.string().c_str(), eval_flags);
         } catch (const std::exception& e) {
             JsError err;
@@ -179,9 +182,19 @@ namespace qjspp {
         }
     }
 
-    void Engine::exec_file(const std::filesystem::path& filepath, int eval_flags) const {
-        std::string code = read_file_content(filepath);
+    // Executes a JavaScript file. Throws std::runtime_error on error.
+    void Engine::exec_file(const std::filesystem::path& filepath, const int eval_flags) const {
+        const std::string code = read_file_content(filepath);
         exec(code, filepath.string().c_str(), eval_flags);
+    }
+
+    // Executes precompiled QuickJS bytecode. Throws std::runtime_error on error.
+    void Engine::exec_bytecode(const std::span<const uint8_t> bytes) const {
+        if (bytes.empty()) return;
+        auto obj = Value(ctx_, JS_ReadObject(ctx_, bytes.data(), bytes.size(), JS_READ_OBJ_BYTECODE));
+        check_exception(obj);
+        const auto result = Value(ctx_, JS_EvalFunction(ctx_, obj.release()));
+        check_exception(result);
     }
 
     struct ModuleInitContext {
