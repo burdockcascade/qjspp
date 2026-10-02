@@ -484,6 +484,16 @@ namespace qjspp {
         }
     };
 
+    struct QJSVersion {
+        int major{0};
+        int minor{0};
+        int patch{0};
+
+        [[nodiscard]] std::string to_string() const {
+            return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+        }
+    };
+
     class Engine {
     public:
         // Preset configurations
@@ -504,6 +514,11 @@ namespace qjspp {
         // Allow move semantics
         Engine(Engine&& other) noexcept;
         Engine& operator=(Engine&& other) noexcept;
+
+        // Version
+        [[nodiscard]] QJSVersion version() {
+            return {QJS_VERSION_MAJOR, QJS_VERSION_MINOR, QJS_VERSION_PATCH};
+        }
 
         // --- Core Execution Methods ---
         [[nodiscard]] std::expected<Value, JsError> eval(std::string_view code, const char* filename = "<eval>", int eval_flags = JS_EVAL_TYPE_GLOBAL) const;
