@@ -25,19 +25,21 @@ public:
 };
 
 int main() {
+    
+    // 1. Initialize the QuickJS engine with medium memory usage
     qjspp::Engine engine = qjspp::Engine::medium();
 
-    // 1. Create the ClassBuilder
+    // 2. Create the ClassBuilder
     auto builder = engine.make_class<Player>("Player");
 
-    // 2. Define constructor: new Player(name, [health])
+    // 3. Define constructor: new Player(name, [health])
     builder.constructor([](const qjspp::CallContext& args) {
         std::string name = args.size() > 0 ? args[0].to_string("Unknown") : "Unknown";
         int health = args.size() > 1 ? args[1].to_int(100) : 100;
         return std::make_unique<Player>(std::move(name), health);
     });
 
-    // 3. Define instance methods
+    // 4. Define instance methods
     builder.instance_method("takeDamage", [](Player* self, const qjspp::CallContext& args) {
         int amount = args.size() > 0 ? args[0].to_int(0) : 0;
         self->take_damage(amount);
@@ -48,7 +50,7 @@ int main() {
         return qjspp::Value::make_bool(args.context(), self->is_alive());
     });
 
-    // 4. Define properties with manual getters and setters
+    // 5. Define properties with manual getters and setters
     builder.property(
         "name",
         [](JSContext* ctx, Player* self) {
@@ -69,16 +71,16 @@ int main() {
         }
     );
 
-    // 5. Define static methods: Player.createDefault()
+    // 6. Define static methods: Player.createDefault()
     builder.static_method("createDefault", [](const qjspp::CallContext& args) {
         auto player = std::make_unique<Player>("NPC", 50);
         return qjspp::Value::make_native_object(args.context(), std::move(player));
     });
 
-    // 6. Build the class and expose it globally
+    // 7. Build the class and expose it globally
     engine.set_global("Player", builder.build());
 
-    // 7. Execute JavaScript using the bound class
+    // 8. Execute JavaScript using the bound class
     const char* js_code = R"(
         const hero = new Player("Arthur", 120);
         hero.takeDamage(30);
