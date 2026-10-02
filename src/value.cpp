@@ -119,73 +119,85 @@ namespace qjspp {
     bool Value::is_function() const noexcept { return JS_IsFunction(ctx_, val_); }
     bool Value::is_array() const noexcept { return JS_IsArray(val_); }
 
-    bool Value::to_bool() const {
-        return JS_ToBool(ctx_, val_);
+    void Value::clear_exception() const noexcept {
+    if (ctx_) {
+        JSValue exc = JS_GetException(ctx_);
+        JS_FreeValue(ctx_, exc);
+    }
+}
+
+    std::optional<bool> Value::as_bool() const noexcept {
+        if (!ctx_ || is_undefined() || is_null()) return std::nullopt;
+        return JS_ToBool(ctx_, val_) != 0;
     }
 
-    int32_t Value::to_int() const {
+    std::optional<int32_t> Value::as_int() const noexcept {
+        if (!ctx_) return std::nullopt;
         int32_t res = 0;
         if (JS_ToInt32(ctx_, &res, val_) < 0) {
-            throw std::runtime_error("Failed converting JSValue to int: " + fetch_and_clear_exception());
+            clear_exception();
+            return std::nullopt;
         }
         return res;
     }
 
-    int64_t Value::to_long() const {
+    std::optional<int64_t> Value::as_long() const noexcept {
+        if (!ctx_) return std::nullopt;
         int64_t res = 0;
         if (JS_ToInt64(ctx_, &res, val_) < 0) {
-            throw std::runtime_error("Failed converting JSValue to long: " + fetch_and_clear_exception());
+            clear_exception();
+            return std::nullopt;
         }
         return res;
     }
 
-    double Value::to_double() const {
+    std::optional<double> Value::as_double() const noexcept {
+        if (!ctx_) return std::nullopt;
         double res = 0.0;
         if (JS_ToFloat64(ctx_, &res, val_) < 0) {
-            throw std::runtime_error("Failed converting JSValue to double: " + fetch_and_clear_exception());
+            clear_exception();
+            return std::nullopt;
         }
         return res;
     }
 
-    float Value::to_float() const {
-        double res = 0.0;
-        if (JS_ToFloat64(ctx_, &res, val_) < 0) {
-            throw std::runtime_error("Failed converting JSValue to double: " + fetch_and_clear_exception());
+    std::optional<float> Value::as_float() const noexcept {
+        if (auto d = as_double()) {
+            return static_cast<float>(*d);
         }
-        return static_cast<float>(res);
+        return std::nullopt;
     }
 
-    std::string Value::to_string() const {
-        if (!ctx_) return "";
+    std::optional<std::string> Value::as_string() const noexcept {
+        if (!ctx_) return std::nullopt;
         const char* str = JS_ToCString(ctx_, val_);
         if (!str) {
-            throw std::runtime_error("Failed converting JSValue to CString: " + fetch_and_clear_exception());
+            clear_exception();
+            return std::nullopt;
         }
         std::string result(str);
         JS_FreeCString(ctx_, str);
         return result;
     }
 
-    std::vector<Value> Value::to_vector() const {
-        if (!ctx_) {
-            throw std::runtime_error("Cannot convert to array: JSContext is null");
+    std::optional<std::vector<Value>> Value::as_vector() const noexcept {
+        if (!ctx_ || !is_array()) return std::nullopt;
+
+        try {
+            Value length_val = get("length");
+            auto length = static_cast<uint32_t>(length_val.to_int(0));
+
+            std::vector<Value> result;
+            result.reserve(length);
+
+            for (uint32_t i = 0; i < length; ++i) {
+                result.push_back(get(i));
+            }
+            return result;
+        } catch (...) {
+            clear_exception();
+            return std::nullopt;
         }
-
-        if (!is_array()) {
-            throw std::runtime_error("Cannot convert JSValue to array: Value is not an array");
-        }
-
-        Value length_val = get("length");
-        auto length = static_cast<uint32_t>(length_val.to_int());
-
-        std::vector<Value> result;
-        result.reserve(length);
-
-        for (uint32_t i = 0; i < length; ++i) {
-            result.push_back(get(i));
-        }
-
-        return result;
     }
 
     bool Value::has(std::string_view key) const {

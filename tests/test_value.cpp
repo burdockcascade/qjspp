@@ -6,36 +6,68 @@
 TEST_CASE("Value Primitive Factories and Conversions", "[value]") {
     auto engine = qjspp::Engine::micro();
 
-    SECTION("Integer creation and conversion") {
+    SECTION("Integer creation, optional, and default conversions") {
         qjspp::Value v = engine.make_int(123);
         CHECK(v.is_number());
         CHECK_FALSE(v.is_string());
         CHECK_FALSE(v.is_bool());
+
+        // as_* optional access
+        REQUIRE(v.as_int().has_value());
+        CHECK(v.as_int().value() == 123);
+        REQUIRE(v.as_double().has_value());
+        CHECK(v.as_double().value() == 123.0);
+        REQUIRE(v.as_long().has_value());
+        CHECK(v.as_long().value() == 123L);
+
+        // to_* default fallback access
         CHECK(v.to_int() == 123);
+        CHECK(v.to_int(999) == 123);
         CHECK(v.to_double() == 123.0);
+        CHECK(v.to_long() == 123L);
     }
 
-    SECTION("Double creation and conversion") {
+    SECTION("Double creation, optional, and default conversions") {
         qjspp::Value v = engine.make_double(123.456);
         CHECK(v.is_number());
+
+        REQUIRE(v.as_double().has_value());
+        CHECK(v.as_double().value() == Catch::Approx(123.456));
+
+        REQUIRE(v.as_float().has_value());
+        CHECK(v.as_float().value() == Catch::Approx(123.456f));
+
         CHECK(v.to_double() == Catch::Approx(123.456));
+        CHECK(v.to_double(1.0) == Catch::Approx(123.456));
+        CHECK(v.to_float() == Catch::Approx(123.456f));
     }
 
-    SECTION("String creation and conversion") {
+    SECTION("String creation, optional, and default conversions") {
         qjspp::Value v = engine.make_string("QuickJS");
         CHECK(v.is_string());
+
+        REQUIRE(v.as_string().has_value());
+        CHECK(v.as_string().value() == "QuickJS");
+
         CHECK(v.to_string() == "QuickJS");
+        CHECK(v.to_string("fallback") == "QuickJS");
     }
 
-    SECTION("Boolean creation and conversion") {
+    SECTION("Boolean creation, optional, and default conversions") {
         qjspp::Value v_true = engine.make_bool(true);
         qjspp::Value v_false = engine.make_bool(false);
 
         CHECK(v_true.is_bool());
+        REQUIRE(v_true.as_bool().has_value());
+        CHECK(v_true.as_bool().value() == true);
         CHECK(v_true.to_bool() == true);
+        CHECK(v_true.to_bool(false) == true);
 
         CHECK(v_false.is_bool());
+        REQUIRE(v_false.as_bool().has_value());
+        CHECK(v_false.as_bool().value() == false);
         CHECK(v_false.to_bool() == false);
+        CHECK(v_false.to_bool(true) == false);
     }
 
     SECTION("Null creation and type checking") {
@@ -43,12 +75,41 @@ TEST_CASE("Value Primitive Factories and Conversions", "[value]") {
         CHECK(v.is_null());
         CHECK_FALSE(v.is_undefined());
         CHECK_FALSE(v.is_object());
+
+        // as_bool on null returns nullopt
+        CHECK_FALSE(v.as_bool().has_value());
+        CHECK(v.to_bool(true) == true);
     }
 
     SECTION("Undefined creation and type checking") {
         qjspp::Value v = engine.make_undefined();
         CHECK(v.is_undefined());
         CHECK_FALSE(v.is_null());
+
+        CHECK_FALSE(v.as_bool().has_value());
+        CHECK(v.to_bool(false) == false);
+    }
+
+    SECTION("Conversion failure handles gracefully without throwing") {
+        qjspp::Value undef = engine.make_undefined();
+        qjspp::Value null_val = engine.make_null();
+
+        // Optional failures
+        CHECK_FALSE(undef.as_bool().has_value());
+        CHECK_FALSE(null_val.as_bool().has_value());
+
+        // Default fallbacks on failure
+        CHECK(undef.to_int(42) == 42);
+        CHECK(undef.to_long(100L) == 100L);
+        CHECK(undef.to_double(3.14) == Catch::Approx(3.14));
+        CHECK(undef.to_float(2.5f) == Catch::Approx(2.5f));
+        CHECK(undef.to_bool(true) == true);
+        CHECK(undef.to_string("default_str") == "default_str");
+
+        // Verify JS exception context was cleanly wiped
+        auto eval_res = engine.eval("1 + 1");
+        REQUIRE(eval_res.has_value());
+        CHECK(eval_res->to_int() == 2);
     }
 
     SECTION("Exception value checking") {
@@ -77,7 +138,7 @@ TEST_CASE("Value Lifetime, Ownership, and Move Semantics", "[value]") {
 
         CHECK(moved.is_string());
         CHECK(moved.to_string() == "MoveMe");
-        CHECK(original.is_undefined()); // Original is reset
+        CHECK(original.is_undefined());
     }
 
     SECTION("Move assignment transfers ownership") {
@@ -99,7 +160,6 @@ TEST_CASE("Value Lifetime, Ownership, and Move Semantics", "[value]") {
         CHECK(v.is_undefined());
         CHECK(v.context() == nullptr);
 
-        // Manually clean up raw JSValue since release gave up RAII control
         JS_FreeValue(ctx, raw);
     }
 }
@@ -120,6 +180,8 @@ TEST_CASE("Value Object Property Operations", "[value]") {
 
         CHECK(obj.get("name").to_string() == "Alice");
         CHECK(obj.get("age").to_int() == 30);
+        CHECK(obj.get("missing").to_string("N/A") == "N/A");
+        CHECK(obj.get("missing").to_int(-1) == -1);
     }
 
     SECTION("Evaluating JS object and inspecting properties") {
@@ -147,6 +209,26 @@ TEST_CASE("Value Array Operations", "[value]") {
         CHECK(arr.get(0).to_string() == "First");
         CHECK(arr.get(1).to_string() == "Second");
         CHECK(arr.get("length").to_int() == 2);
+    }
+
+    SECTION("Array optional and default vector conversion") {
+        auto res = engine.eval("['apple', 'banana', 'cherry']");
+        REQUIRE(res.has_value());
+
+        auto opt_vec = res->as_vector();
+        REQUIRE(opt_vec.has_value());
+        REQUIRE(opt_vec->size() == 3);
+        CHECK((*opt_vec)[0].to_string() == "apple");
+        CHECK((*opt_vec)[1].to_string() == "banana");
+        CHECK((*opt_vec)[2].to_string() == "cherry");
+
+        std::vector<qjspp::Value> direct_vec = res->to_vector();
+        CHECK(direct_vec.size() == 3);
+
+        // Non-array returns nullopt and uses default
+        qjspp::Value not_arr = engine.make_int(123);
+        CHECK_FALSE(not_arr.as_vector().has_value());
+        CHECK(not_arr.to_vector().empty());
     }
 }
 
@@ -192,20 +274,18 @@ TEST_CASE("Value Native Function Creation", "[value]") {
     SECTION("Exposing C++ lambda as JS function and invoking it") {
         auto native_fn = engine.make_function([&engine](const qjspp::CallContext& args) {
             REQUIRE(args.size() == 2);
-            int a = args[0].to_int();
-            int b = args[1].to_int();
+            int a = args[0].to_int(0);
+            int b = args[1].to_int(0);
             return engine.make_int(a * b);
         });
 
-        // Call directly from C++
         qjspp::Value res = native_fn.call({
             engine.make_int(6),
             engine.make_int(7)
         });
         CHECK(res.to_int() == 42);
 
-        // Bind to JS global object and call from JS code
-        qjspp::Value global_obj(engine.context(), JS_GetGlobalObject(engine.context()), false);
+        qjspp::Value global_obj = engine.global();
         global_obj.set("nativeMult", native_fn);
 
         auto eval_res = engine.eval("nativeMult(8, 9)");

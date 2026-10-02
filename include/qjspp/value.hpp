@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <quickjs.h>
 #include <string>
 #include <string_view>
@@ -55,14 +56,37 @@ namespace qjspp {
         [[nodiscard]] bool is_function() const noexcept;
         [[nodiscard]] bool is_array() const noexcept;
 
-        // Conversions
-        [[nodiscard]] bool to_bool() const;
-        [[nodiscard]] int32_t to_int() const;
-        [[nodiscard]] int64_t to_long() const;
-        [[nodiscard]] double to_double() const;
-        [[nodiscard]] float to_float() const;
-        [[nodiscard]] std::string to_string() const;
-        [[nodiscard]] std::vector<Value> to_vector() const;
+        // Optional Conversions (no throw, cleans exception context)
+        [[nodiscard]] std::optional<bool> as_bool() const noexcept;
+        [[nodiscard]] std::optional<int32_t> as_int() const noexcept;
+        [[nodiscard]] std::optional<int64_t> as_long() const noexcept;
+        [[nodiscard]] std::optional<double> as_double() const noexcept;
+        [[nodiscard]] std::optional<float> as_float() const noexcept;
+        [[nodiscard]] std::optional<std::string> as_string() const noexcept;
+        [[nodiscard]] std::optional<std::vector<Value>> as_vector() const noexcept;
+
+        // Default-fallback Conversions
+        [[nodiscard]] bool to_bool(bool default_val = false) const noexcept {
+            return as_bool().value_or(default_val);
+        }
+        [[nodiscard]] int32_t to_int(int32_t default_val = 0) const noexcept {
+            return as_int().value_or(default_val);
+        }
+        [[nodiscard]] int64_t to_long(int64_t default_val = 0) const noexcept {
+            return as_long().value_or(default_val);
+        }
+        [[nodiscard]] double to_double(double default_val = 0.0) const noexcept {
+            return as_double().value_or(default_val);
+        }
+        [[nodiscard]] float to_float(float default_val = 0.0f) const noexcept {
+            return as_float().value_or(default_val);
+        }
+        [[nodiscard]] std::string to_string(std::string_view default_val = "") const {
+            return as_string().value_or(std::string(default_val));
+        }
+        [[nodiscard]] std::vector<Value> to_vector(std::vector<Value> default_val = {}) const {
+            return as_vector().value_or(std::move(default_val));
+        }
 
         // Invocations
         [[nodiscard]] Value call(std::initializer_list<Value> args) const;
@@ -84,7 +108,8 @@ namespace qjspp {
         JSValue val_{JS_UNDEFINED};
 
         void free() noexcept;
+        void clear_exception() const noexcept;
         [[nodiscard]] std::string fetch_and_clear_exception() const;
     };
 
-}
+} // namespace qjspp
