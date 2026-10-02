@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(QJSPP_BUILD_TESTS "Build qjspp unit tests" ${PROJECT_IS_TOP_LEVEL})
+option(QJSPP_BUILD_EXAMPLES "Build qjspp examples" ${PROJECT_IS_TOP_LEVEL})
 option(QJSPP_INCLUDE_QUICKJS "Fetch and build QuickJS dependency internally" ON)
 
 # Include the FetchContent module
@@ -74,5 +75,24 @@ if(QJSPP_BUILD_TESTS)
             qjspp
             Catch2::Catch2WithMain
     )
+
+endif()
+
+# -----------------------------------------------------------------------------
+# Target: Examples
+# -----------------------------------------------------------------------------
+if(QJSPP_BUILD_EXAMPLES)
+
+    # Example 1: Full class binding (ctor, methods, properties, static methods)
+    add_executable(example_class_binding examples/example_class_binding.cpp)
+    target_link_libraries(example_class_binding PRIVATE qjspp)
+
+    # Example 2: Automatic property binding via add_property_getset
+    add_executable(example_property_getset examples/example_property_getset.cpp)
+    target_link_libraries(example_property_getset PRIVATE qjspp)
+
+    # Example 3: Extracting native objects via get_native_opaque
+    add_executable(example_native_opaque examples/example_native_opaque.cpp)
+    target_link_libraries(example_native_opaque PRIVATE qjspp)
 
 endif()
