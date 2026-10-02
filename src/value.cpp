@@ -132,7 +132,7 @@ namespace qjspp {
     }
 
     std::optional<int32_t> Value::as_int() const noexcept {
-        if (!ctx_) return std::nullopt;
+        if (!ctx_ || is_undefined() || is_null()) return std::nullopt;
         int32_t res = 0;
         if (JS_ToInt32(ctx_, &res, val_) < 0) {
             clear_exception();
@@ -142,7 +142,7 @@ namespace qjspp {
     }
 
     std::optional<int64_t> Value::as_long() const noexcept {
-        if (!ctx_) return std::nullopt;
+        if (!ctx_ || is_undefined() || is_null()) return std::nullopt;
         int64_t res = 0;
         if (JS_ToInt64(ctx_, &res, val_) < 0) {
             clear_exception();
@@ -152,7 +152,7 @@ namespace qjspp {
     }
 
     std::optional<double> Value::as_double() const noexcept {
-        if (!ctx_) return std::nullopt;
+        if (!ctx_ || is_undefined() || is_null()) return std::nullopt;
         double res = 0.0;
         if (JS_ToFloat64(ctx_, &res, val_) < 0) {
             clear_exception();
@@ -169,7 +169,7 @@ namespace qjspp {
     }
 
     std::optional<std::string> Value::as_string() const noexcept {
-        if (!ctx_) return std::nullopt;
+        if (!ctx_ || is_undefined() || is_null()) return std::nullopt;
         const char* str = JS_ToCString(ctx_, val_);
         if (!str) {
             clear_exception();
