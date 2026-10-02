@@ -1,5 +1,17 @@
 # QJSPP
 
+## About qjspp
+
+**qjspp** is a lightweight, modern C++23 binding library and wrapper for the QuickJS JavaScript engine. It provides an intuitive, type-safe API for embedding JavaScript execution, wrapping runtime contexts, exporting modules, and seamlessly binding native C++ classes, methods, and properties to JavaScript.
+
+### Key Features
+
+* **Modern C++23 API**: Leverages standard features such as `std::expected` and `std::span` for clean error handling and zero-copy argument passing.
+* **Fluent Class Builder**: Easily bind C++ classes with constructors, instance methods, static functions, and properties to JavaScript prototypes.
+* **Automatic Property Reflection**: Direct member-pointer binding for primitive fields and enums via `add_property_getset`.
+* **Automatic Lifetime Management**: RAII wrappers around QuickJS runtime structures (`JSRuntime`, `JSContext`, `JSValue`) to prevent reference-counting leaks.
+* **Module & Global Exports**: Simple interfaces to define native ES modules or inject globals into the execution context.
+
 ## Example
 ```cpp
 #include <iostream>
